@@ -14,6 +14,9 @@ services:
       NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       DOWNLOAD_DIR: /downloads
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      NODE_ENV: ${NODE_ENV:-production}
     volumes:
       - db_data:/data
       - ${DOWNLOAD_DIR:-./downloads}:/downloads
@@ -22,7 +25,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "5173:80"
+      - "${PORT:-80}:80"
     depends_on:
       - backend
     restart: unless-stopped
