@@ -1,0 +1,35 @@
+.nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: var(--border);
+    padding: 16px 28px;
+}
+
+.logo {
+    font-family: 'Rubik Mono One', monospace;
+    font-size: 1.4rem;
+    margin-right: auto;
+    letter-spacing: 0.05em;
+}
+
+.link {
+    font-family: 'Space Grotesk', sans-serif;
+    background: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    padding: 4px 10px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.link:hover {
+    background: var(--fg);
+    color: var(--bg);
+    border-color: var(--fg);
+}
+
+.active {
+    border-color: var(--fg);
+}

@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: file:/data/cr8.db
+      SLSKD_URL: ${SLSKD_URL}
+      SLSKD_API_KEY: ${SLSKD_API_KEY}
+      NAVIDROME_URL: ${NAVIDROME_URL}
+      NAVIDROME_USER: ${NAVIDROME_USER}
+      NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      DOWNLOAD_DIR: /downloads
+    volumes:
+      - db_data:/data
+      - ${DOWNLOAD_DIR:-./downloads}:/downloads
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  db_data:

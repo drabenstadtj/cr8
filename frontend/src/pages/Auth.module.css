@@ -1,0 +1,45 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 28px;
+    min-height: 100vh;
+    justify-content: center;
+}
+
+.logo {
+    font-family: 'Rubik Mono One', monospace;
+    font-size: 3rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 32px;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 320px;
+}
+
+.input {
+    width: 100%;
+}
+
+.button {
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.error {
+    color: var(--fg);
+    opacity: 0.6;
+    font-size: 0.85rem;
+}
+
+.footer {
+    margin-top: 20px;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
