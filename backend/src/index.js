@@ -73,13 +73,13 @@ app.decorate('requireAdmin', async (req, reply) => {
   }
 })
 
-await app.register(authRoutes, { prefix: '/auth' })
-await app.register(searchRoutes, { prefix: '/search' })
-await app.register(requestRoutes, { prefix: '/requests' })
-await app.register(adminRoutes, { prefix: '/admin' })
+await app.register(authRoutes, { prefix: '/api/auth' })
+await app.register(searchRoutes, { prefix: '/api/search' })
+await app.register(requestRoutes, { prefix: '/api/requests' })
+await app.register(adminRoutes, { prefix: '/api/admin' })
 
-app.get('/health', async () => ({ ok: true }))
-app.get('/config', { onRequest: [app.authenticate] }, async () => ({ navidromeUrl: process.env.NAVIDROME_URL || null }))
+app.get('/api/health', async () => ({ ok: true }))
+app.get('/api/config', { onRequest: [app.authenticate] }, async () => ({ navidromeUrl: process.env.NAVIDROME_PUBLIC_URL || process.env.NAVIDROME_URL || null }))
 
 const port = parseInt(process.env.PORT || '3000')
 await app.listen({ port, host: '0.0.0.0' })

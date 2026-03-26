@@ -14,7 +14,7 @@ export function clearToken() {
 
 async function request(method, path, body) {
   const token = getToken()
-  const res = await fetch(path, {
+  const res = await fetch(`/api${path}`, {
     method,
     headers: {
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),

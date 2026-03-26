@@ -82,6 +82,7 @@ export async function deleteNavidromeUser(username) {
 export async function findNavidromeUrl(title, artist, type) {
   const base = process.env.NAVIDROME_URL
   if (!base) return null
+  const publicBase = process.env.NAVIDROME_PUBLIC_URL || base
 
   try {
     const query = `${artist} ${title}`
@@ -100,7 +101,7 @@ export async function findNavidromeUrl(title, artist, type) {
           a.name?.toLowerCase() === title.toLowerCase() &&
           a.artist?.toLowerCase() === artist.toLowerCase()
       ) || albums[0]
-      if (match) return `${base}/app/#/album/${match.id}/show`
+      if (match) return `${publicBase}/app/#/album/${match.id}/show`
     } else {
       const songs = r.searchResult3?.song || []
       const match = songs.find(
@@ -108,12 +109,12 @@ export async function findNavidromeUrl(title, artist, type) {
           s.title?.toLowerCase() === title.toLowerCase() &&
           s.artist?.toLowerCase() === artist.toLowerCase()
       ) || songs[0]
-      if (match) return `${base}/app/#/album/${match.albumId}/show`
+      if (match) return `${publicBase}/app/#/album/${match.albumId}/show`
     }
   } catch {
     // fall through
   }
-  return `${base}/app/`
+  return `${publicBase}/app/`
 }
 
 export async function checkDuplicateInLibrary(title, artist) {
