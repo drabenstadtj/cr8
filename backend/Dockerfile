@@ -1,8 +1,6 @@
-FROM node:22-bookworm-slim
+FROM node:22-bullseye-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends openssl libssl-dev && rm -rf /var/lib/apt/lists/*
-
-ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
