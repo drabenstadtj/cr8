@@ -1,6 +1,12 @@
 const BASE = () => process.env.SLSKD_URL
 const API_KEY = () => process.env.SLSKD_API_KEY
 
+const PREFERRED_EXTS = ['flac', 'mp3', 'ogg', 'm4a']
+const MIN_BITRATE = 192
+const MIN_BIT_DEPTH = 0
+const DURATION_TOLERANCE_S = 10
+const DOWNLOAD_ATTEMPTS = 3
+
 function headers() {
   return { 'X-API-Key': API_KEY(), 'Content-Type': 'application/json' }
 }
@@ -12,7 +18,20 @@ async function slskdFetch(path, options = {}) {
   return res.json()
 }
 
-// Start a search, returns search ID
+// Strip to lowercase alphanumeric+spaces for fuzzy matching
+function alnumOnly(str) {
+  return str.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function getExtension(file) {
+  let ext = (file.extension || '').toLowerCase().replace(/^\./, '')
+  if (!ext) {
+    const match = file.filename.match(/\.([a-z0-9]+)$/i)
+    ext = match ? match[1].toLowerCase() : ''
+  }
+  return ext
+}
+
 export async function startSearch(searchText) {
   const data = await slskdFetch('/api/v0/searches', {
     method: 'POST',
@@ -21,67 +40,83 @@ export async function startSearch(searchText) {
   return data.id
 }
 
-// Poll until search is complete, returns responses
-export async function waitForSearch(searchId, timeoutMs = 30000) {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
+export async function waitForSearch(searchId, retries = 20) {
+  for (let i = 0; i < retries; i++) {
     const search = await slskdFetch(`/api/v0/searches/${searchId}`)
     if (search.isComplete) {
+      if (search.fileCount === 0 || search.fileCount === search.lockedFileCount) {
+        throw new Error(`Search complete but no available files found`)
+      }
       return slskdFetch(`/api/v0/searches/${searchId}/responses`)
     }
-    await new Promise((r) => setTimeout(r, 1500))
+    await new Promise((r) => setTimeout(r, 15000))
   }
-  throw new Error(`Search ${searchId} timed out`)
+  throw new Error(`Search ${searchId} did not complete after ${retries} retries`)
 }
 
-// Pick the best file from search responses
-// Criteria: ranked extensions, min bitrate, filename contains artist+title, duration within 10s
-export function selectBestFile(responses, { title, artist, durationMs }) {
-  const PREFERRED_EXTS = ['.flac', '.mp3', '.ogg', '.m4a']
-  const MIN_BITRATE = 192
-  const DURATION_TOLERANCE_MS = 10000
+// Collect and rank all matching candidates from search responses
+export function collectCandidates(responses, { title, artist, album, durationS }) {
+  const sanitizedTitle = alnumOnly(title)
+  const sanitizedArtist = alnumOnly(artist || '')
+  const sanitizedAlbum = alnumOnly(album || '')
 
   const candidates = []
 
   for (const response of responses) {
+    if (!response.hasFreeUploadSlot) continue
     for (const file of response.files || []) {
-      const name = file.filename.toLowerCase()
-      const ext = PREFERRED_EXTS.find((e) => name.endsWith(e))
-      if (!ext) continue
+      const ext = getExtension(file)
+      const extRank = PREFERRED_EXTS.indexOf(ext)
+      if (extRank === -1) continue
+
+      const sanitizedFilename = alnumOnly(file.filename)
+
+      const titleMatch = sanitizedFilename.includes(sanitizedTitle)
+      const artistOrAlbumMatch =
+        (sanitizedArtist && sanitizedFilename.includes(sanitizedArtist)) ||
+        (sanitizedAlbum && sanitizedFilename.includes(sanitizedAlbum))
+      if (!titleMatch || !artistOrAlbumMatch) continue
+
+      if (durationS && file.length) {
+        if (Math.abs(file.length - durationS) > DURATION_TOLERANCE_S) continue
+      }
 
       const bitrate = file.bitRate || 0
-      if (bitrate < MIN_BITRATE) continue
+      if (bitrate > 0 && bitrate <= MIN_BITRATE) continue
 
-      const nameMatch =
-        name.includes(artist.toLowerCase()) && name.includes(title.toLowerCase())
-      if (!nameMatch) continue
-
-      if (durationMs) {
-        const fileDurationMs = (file.length || 0) * 1000
-        if (Math.abs(fileDurationMs - durationMs) > DURATION_TOLERANCE_MS) continue
-      }
+      const bitDepth = file.bitDepth || 0
+      if (bitDepth > 0 && bitDepth <= MIN_BIT_DEPTH) continue
 
       candidates.push({
         username: response.username,
         filename: file.filename,
         size: file.size,
         bitrate,
-        extRank: PREFERRED_EXTS.indexOf(ext),
+        bitDepth,
+        extRank,
       })
     }
   }
 
-  if (!candidates.length) return null
-
+  // Sort: best extension first, then highest bitrate
   candidates.sort((a, b) => a.extRank - b.extRank || b.bitrate - a.bitrate)
-  return candidates[0]
+  return candidates.slice(0, DOWNLOAD_ATTEMPTS)
 }
 
-export async function queueDownload(username, filename, size) {
-  return slskdFetch(`/api/v0/transfers/downloads/${username}`, {
-    method: 'POST',
-    body: JSON.stringify([{ filename, size }]),
-  })
+// Try candidates in order until one queues successfully
+export async function queueBestDownload(candidates) {
+  for (const candidate of candidates) {
+    try {
+      await slskdFetch(`/api/v0/transfers/downloads/${candidate.username}`, {
+        method: 'POST',
+        body: JSON.stringify([{ filename: candidate.filename, size: candidate.size }]),
+      })
+      return candidate
+    } catch {
+      continue
+    }
+  }
+  throw new Error('Failed to queue any candidate')
 }
 
 export async function getDownloads() {
@@ -96,6 +131,7 @@ export async function cleanupDownload(username, downloadId) {
   await slskdFetch(`/api/v0/transfers/downloads/${username}/${downloadId}?remove=false`, {
     method: 'DELETE',
   })
+  await new Promise((r) => setTimeout(r, 1000))
   await slskdFetch(`/api/v0/transfers/downloads/${username}/${downloadId}?remove=true`, {
     method: 'DELETE',
   })

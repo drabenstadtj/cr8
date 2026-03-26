@@ -1,8 +1,8 @@
 import {
   startSearch,
   waitForSearch,
-  selectBestFile,
-  queueDownload,
+  collectCandidates,
+  queueBestDownload,
   getDownloads,
   deleteSearch,
   cleanupDownload,
@@ -18,13 +18,11 @@ export function startDownloadWorker(app) {
 async function runWorker(app) {
   const prisma = app.prisma
 
-  // Process approved requests
   const approved = await prisma.request.findMany({ where: { status: 'APPROVED' } })
   for (const req of approved) {
     await startDownload(prisma, req, app.log)
   }
 
-  // Poll in-progress downloads
   const downloading = await prisma.request.findMany({ where: { status: 'DOWNLOADING' } })
   if (downloading.length) {
     await pollDownloads(prisma, downloading, app.log)
@@ -32,7 +30,7 @@ async function runWorker(app) {
 }
 
 async function startDownload(prisma, request, log) {
-  log.info({ id: request.id }, 'Starting slskd search for request')
+  log.info({ id: request.id }, 'Starting slskd search')
 
   try {
     await prisma.request.update({ where: { id: request.id }, data: { status: 'SEARCHING' } })
@@ -44,29 +42,30 @@ async function startDownload(prisma, request, log) {
     const responses = await waitForSearch(searchId)
     await deleteSearch(searchId)
 
-    const best = selectBestFile(responses, {
+    const candidates = collectCandidates(responses, {
       title: request.title,
       artist: request.artist,
-      durationMs: null, // TODO: pass from MusicBrainz metadata if available
+      album: request.album,
+      durationS: null, // TODO: pass from MusicBrainz metadata if available
     })
 
-    if (!best) {
-      log.warn({ id: request.id }, 'No suitable file found')
+    if (!candidates.length) {
+      log.warn({ id: request.id }, 'No suitable candidates found')
       await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
       return
     }
 
-    await queueDownload(best.username, best.filename, best.size)
+    const queued = await queueBestDownload(candidates)
     await prisma.request.update({
       where: { id: request.id },
       data: {
         status: 'DOWNLOADING',
-        slskdUsername: best.username,
-        slskdFilename: best.filename,
+        slskdUsername: queued.username,
+        slskdFilename: queued.filename,
       },
     })
 
-    log.info({ id: request.id, file: best.filename }, 'Download queued')
+    log.info({ id: request.id, file: queued.filename }, 'Download queued')
   } catch (err) {
     log.error({ id: request.id, err }, 'Download failed')
     await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
@@ -84,11 +83,7 @@ async function pollDownloads(prisma, requests, log) {
   for (const request of requests) {
     const match = allDownloads
       .flatMap((u) => u.directories?.flatMap((d) => d.files || []) || [])
-      .find(
-        (f) =>
-          f.username === request.slskdUsername &&
-          f.filename === request.slskdFilename
-      )
+      .find((f) => f.username === request.slskdUsername && f.filename === request.slskdFilename)
 
     if (!match) continue
 

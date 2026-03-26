@@ -8,8 +8,17 @@ import requestRoutes from './routes/requests.js'
 import adminRoutes from './routes/admin.js'
 import { startDownloadWorker } from './workers/downloader.js'
 
+const isDev = process.env.NODE_ENV !== 'production'
 const prisma = new PrismaClient()
-const app = Fastify({ logger: true })
+const app = Fastify({
+  logger: isDev ? {
+    transport: { target: 'pino-pretty', options: { colorize: true, ignore: 'pid,hostname' } },
+    serializers: {
+      req: (req) => `${req.method} ${req.url}`,
+      res: (res) => `${res.statusCode}`,
+    },
+  } : true,
+})
 
 await app.register(cors, {
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -57,3 +66,18 @@ const port = parseInt(process.env.PORT || '3000')
 await app.listen({ port, host: '0.0.0.0' })
 
 startDownloadWorker(app)
+
+// Connectivity checks
+async function checkSlskd() {
+  try {
+    const res = await fetch(`${process.env.SLSKD_URL}/api/v0/application`, {
+      headers: { 'X-API-Key': process.env.SLSKD_API_KEY },
+    })
+    if (res.ok) app.log.info('slskd connected')
+    else app.log.warn(`slskd reachable but returned ${res.status} — check API key`)
+  } catch {
+    app.log.warn(`slskd unreachable at ${process.env.SLSKD_URL}`)
+  }
+}
+
+checkSlskd()
