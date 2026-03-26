@@ -54,6 +54,12 @@ export async function waitForSearch(searchId, retries = 20) {
   throw new Error(`Search ${searchId} did not complete after ${retries} retries`)
 }
 
+function getDirectory(filename) {
+  const sep = filename.includes('\\') ? '\\' : '/'
+  const idx = filename.lastIndexOf(sep)
+  return idx === -1 ? '' : filename.substring(0, idx)
+}
+
 // Collect and rank all matching candidates from search responses
 export function collectCandidates(responses, { title, artist, album, durationS }) {
   const sanitizedTitle = alnumOnly(title)
@@ -103,6 +109,59 @@ export function collectCandidates(responses, { title, artist, album, durationS }
   return candidates.slice(0, DOWNLOAD_ATTEMPTS)
 }
 
+// Collect album candidates: groups files by (username, directory), returns best groups
+export function collectAlbumCandidates(responses, { artist, album }) {
+  const sanitizedArtist = alnumOnly(artist || '')
+  const sanitizedAlbum = alnumOnly(album || '')
+
+  const groups = new Map() // key: "username\0directory"
+
+  for (const response of responses) {
+    if (!response.hasFreeUploadSlot) continue
+    for (const file of response.files || []) {
+      const ext = getExtension(file)
+      if (PREFERRED_EXTS.indexOf(ext) === -1) continue
+
+      const dir = getDirectory(file.filename)
+      const sanitizedDir = alnumOnly(dir)
+
+      const artistMatch = sanitizedArtist && sanitizedDir.includes(sanitizedArtist)
+      const albumMatch = sanitizedAlbum && sanitizedDir.includes(sanitizedAlbum)
+      if (!artistMatch && !albumMatch) continue
+
+      const key = `${response.username}\0${dir}`
+      if (!groups.has(key)) {
+        groups.set(key, {
+          username: response.username,
+          directory: dir,
+          files: [],
+          extRankSum: 0,
+          bitrateSum: 0,
+        })
+      }
+      const g = groups.get(key)
+      const extRank = PREFERRED_EXTS.indexOf(ext)
+      g.files.push({ filename: file.filename, size: file.size })
+      g.extRankSum += extRank
+      g.bitrateSum += file.bitRate || 0
+    }
+  }
+
+  // Only keep groups with at least 2 music files
+  const candidates = [...groups.values()].filter((g) => g.files.length >= 2)
+
+  // Sort: most files first, then best average extension rank, then highest avg bitrate
+  candidates.sort((a, b) => {
+    if (b.files.length !== a.files.length) return b.files.length - a.files.length
+    const aExtAvg = a.extRankSum / a.files.length
+    const bExtAvg = b.extRankSum / b.files.length
+    if (aExtAvg !== bExtAvg) return aExtAvg - bExtAvg
+    return b.bitrateSum / b.files.length - a.bitrateSum / a.files.length
+  })
+
+  return candidates.slice(0, DOWNLOAD_ATTEMPTS)
+}
+
 // Try candidates in order until one queues successfully
 export async function queueBestDownload(candidates) {
   for (const candidate of candidates) {
@@ -117,6 +176,22 @@ export async function queueBestDownload(candidates) {
     }
   }
   throw new Error('Failed to queue any candidate')
+}
+
+// Queue all files in an album candidate
+export async function queueAlbumDownload(candidates) {
+  for (const candidate of candidates) {
+    try {
+      await slskdFetch(`/api/v0/transfers/downloads/${candidate.username}`, {
+        method: 'POST',
+        body: JSON.stringify(candidate.files.map((f) => ({ filename: f.filename, size: f.size }))),
+      })
+      return candidate
+    } catch {
+      continue
+    }
+  }
+  throw new Error('Failed to queue any album candidate')
 }
 
 export async function getDownloads() {

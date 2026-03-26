@@ -1,10 +1,17 @@
 // Uses Subsonic API (stable, v1.16.1) for library duplicate checks
-// Navidrome Subsonic endpoint: /rest/*
+import crypto from 'crypto'
 
 function subsonicParams(extra = {}) {
+  const salt = Math.random().toString(36).slice(2)
+  const token = crypto
+    .createHash('md5')
+    .update((process.env.NAVIDROME_PASSWORD || '') + salt)
+    .digest('hex')
+
   const params = new URLSearchParams({
     u: process.env.NAVIDROME_USER || '',
-    p: process.env.NAVIDROME_PASSWORD || '',
+    t: token,
+    s: salt,
     v: '1.16.1',
     c: 'cr8',
     f: 'json',
@@ -15,7 +22,7 @@ function subsonicParams(extra = {}) {
 
 export async function checkDuplicateInLibrary(title, artist) {
   const base = process.env.NAVIDROME_URL
-  if (!base) return false // skip check if not configured
+  if (!base) return false
 
   try {
     const query = `${artist} ${title}`
@@ -24,8 +31,11 @@ export async function checkDuplicateInLibrary(title, artist) {
     if (!res.ok) return false
 
     const data = await res.json()
-    const songs = data?.['subsonic-response']?.searchResult3?.song || []
 
+    const status = data?.['subsonic-response']?.status
+    if (status !== 'ok') return false
+
+    const songs = data?.['subsonic-response']?.searchResult3?.song || []
     return songs.some(
       (s) =>
         s.title?.toLowerCase() === title.toLowerCase() &&

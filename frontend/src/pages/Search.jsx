@@ -93,13 +93,16 @@ const [query, setQuery] = useState('')
                 {r.artist}
               </div>
             </div>
-            <button
-              className={styles.requestButton}
-              disabled={submitting === r.mbid || requested.has(r.mbid)}
-              onClick={() => handleRequest(r)}
-            >
-              {submitting === r.mbid ? '...' : requested.has(r.mbid) ? 'Requested' : 'Request'}
-            </button>
+            {r.inLibrary
+              ? <span className={styles.inLibrary}>In library</span>
+              : <button
+                  className={styles.requestButton}
+                  disabled={submitting === r.mbid || requested.has(r.mbid)}
+                  onClick={() => handleRequest(r)}
+                >
+                  {submitting === r.mbid ? '...' : requested.has(r.mbid) ? 'Requested' : 'Request'}
+                </button>
+            }
           </li>
         ))}
       </ul>

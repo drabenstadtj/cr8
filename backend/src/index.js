@@ -81,3 +81,17 @@ async function checkSlskd() {
 }
 
 checkSlskd()
+
+async function checkNavidrome() {
+  const base = process.env.NAVIDROME_URL
+  if (!base) { app.log.info('Navidrome not configured, skipping library checks'); return }
+  try {
+    const { checkDuplicateInLibrary } = await import('./services/navidrome.js')
+    await checkDuplicateInLibrary('ping', 'ping')
+    app.log.info('Navidrome connected')
+  } catch {
+    app.log.warn(`Navidrome unreachable at ${base}`)
+  }
+}
+
+checkNavidrome()
