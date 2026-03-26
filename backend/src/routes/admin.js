@@ -60,6 +60,15 @@ export default async function adminRoutes(app) {
     return req.prisma.invite.findMany({ orderBy: { id: 'desc' } })
   })
 
+  // DELETE /admin/requests/:id
+  app.delete('/requests/:id', { onRequest: [app.requireAdmin] }, async (req, reply) => {
+    const { id } = req.params
+    const request = await req.prisma.request.findUnique({ where: { id } })
+    if (!request) return reply.code(404).send({ error: 'Not found' })
+    await req.prisma.request.delete({ where: { id } })
+    return reply.code(204).send()
+  })
+
   // GET /admin/users
   app.get('/users', { onRequest: [app.requireAdmin] }, async (req) => {
     return req.prisma.user.findMany({

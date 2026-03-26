@@ -40,6 +40,18 @@
     font-size: 0.85rem;
 }
 
+.deleteButton {
+    color: var(--muted);
+    border-color: #333;
+    font-size: 0.8rem;
+}
+
+.deleteButton:hover {
+    color: var(--bg);
+    background: var(--muted);
+    border-color: var(--muted);
+}
+
 .inviteResult {
     word-break: break-all;
     color: var(--muted);

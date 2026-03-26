@@ -60,6 +60,30 @@ function getDirectory(filename) {
   return idx === -1 ? '' : filename.substring(0, idx)
 }
 
+function getBasename(filename) {
+  const sep = filename.includes('\\') ? '\\' : '/'
+  return filename.substring(filename.lastIndexOf(sep) + 1)
+}
+
+// Extract leading track number from filename basename, e.g. "02 - Foo.flac" → 2
+function extractTrackNumber(filename) {
+  const base = getBasename(filename)
+  const m = base.match(/^(\d{1,3})[\s\-_.]/)
+  return m ? parseInt(m[1], 10) : null
+}
+
+// Returns true if the file list has duplicate track numbers (messy/double-rip folder)
+function hasDuplicateTracks(files) {
+  const seen = new Set()
+  for (const f of files) {
+    const n = extractTrackNumber(f.filename)
+    if (n === null) continue
+    if (seen.has(n)) return true
+    seen.add(n)
+  }
+  return false
+}
+
 // Collect and rank all matching candidates from search responses
 export function collectCandidates(responses, { title, artist, album, durationS }) {
   const sanitizedTitle = alnumOnly(title)
@@ -147,8 +171,10 @@ export function collectAlbumCandidates(responses, { artist, album }) {
     }
   }
 
-  // Only keep groups with at least 2 music files
-  const candidates = [...groups.values()].filter((g) => g.files.length >= 2)
+  // Only keep groups with at least 2 music files and no duplicate track numbers
+  const candidates = [...groups.values()].filter(
+    (g) => g.files.length >= 2 && !hasDuplicateTracks(g.files)
+  )
 
   // Sort: most files first, then best average extension rank, then highest avg bitrate
   candidates.sort((a, b) => {

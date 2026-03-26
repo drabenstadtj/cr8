@@ -32,8 +32,9 @@ export default async function requestRoutes(app) {
       return reply.code(409).send({ error: 'already_in_library' })
     }
 
+    const status = req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING'
     const request = await req.prisma.request.create({
-      data: { mbid, title, artist, album, type, userId: req.user.id },
+      data: { mbid, title, artist, album, type, userId: req.user.id, status },
     })
 
     return reply.code(201).send(request)

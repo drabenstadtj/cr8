@@ -23,6 +23,15 @@ export default function Admin() {
     }
   }
 
+  async function handleDelete(id) {
+    try {
+      await api.delete(`/admin/requests/${id}`)
+      setRequests((prev) => prev.filter((r) => r.id !== id))
+    } catch {
+      setError('Failed to delete request')
+    }
+  }
+
   async function generateInvite() {
     try {
       const invite = await api.post('/admin/invites', {})
@@ -57,6 +66,7 @@ export default function Admin() {
                   const reason = prompt('Rejection reason (optional):')
                   handleAction(r.id, 'reject', reason)
                 }}>Reject</button>
+                <button className={styles.deleteButton} onClick={() => handleDelete(r.id)}>Delete</button>
               </li>
             ))}
           </ul>
@@ -69,6 +79,7 @@ export default function Admin() {
               <li key={r.id} className={styles.item}>
                 <span className={styles.itemInfo}><strong>{r.title}</strong> — {r.artist}</span>
                 <span className={styles.itemBy}>{r.status}</span>
+                <button className={styles.deleteButton} onClick={() => handleDelete(r.id)}>Delete</button>
               </li>
             ))}
           </ul>
