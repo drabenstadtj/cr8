@@ -1,8 +1,9 @@
 services:
   backend:
+    container_name: cr8-backend
     build: ./backend
     ports:
-      - "3000:3000"
+      - 3030:3000
     environment:
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET}
@@ -14,21 +15,28 @@ services:
       NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       DOWNLOAD_DIR: /downloads
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      NODE_ENV: ${NODE_ENV:-production}
     volumes:
       - db_data:/data
       - ${DOWNLOAD_DIR:-./downloads}:/downloads
     restart: unless-stopped
-
+    networks:
+      - music-network
+      - reverse-proxy-network
   frontend:
+    container_name: cr8-frontend
     build: ./frontend
     ports:
-      - "${PORT:-80}:80"
+      - 5173:80
     depends_on:
       - backend
     restart: unless-stopped
-
+    networks:
+      - music-network
+      - reverse-proxy-network
 volumes:
-  db_data:
+  db_data: null
+networks:
+  music-network:
+    external: true
+  reverse-proxy-network:
+    external: true
