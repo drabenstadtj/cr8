@@ -122,23 +122,33 @@ export async function checkDuplicateInLibrary(title, artist) {
 
   try {
     const query = `${artist} ${title}`
-    const url = `${base}/rest/search3?${subsonicParams({ query, songCount: 5 })}`
+    const url = `${base}/rest/search3?${subsonicParams({ query, songCount: 10, albumCount: 5 })}`
     const res = await fetch(url)
     if (!res.ok) return false
 
     const data = await res.json()
+    const r = data?.['subsonic-response']
+    if (r?.status !== 'ok') return false
 
-    const status = data?.['subsonic-response']?.status
-    if (status !== 'ok') return false
+    const lTitle = title.toLowerCase()
+    const lArtist = artist.toLowerCase()
 
-    const songs = data?.['subsonic-response']?.searchResult3?.song || []
-    return songs.some(
-      (s) =>
-        s.title?.toLowerCase() === title.toLowerCase() &&
-        s.artist?.toLowerCase() === artist.toLowerCase()
-    )
+    // Check songs (for track searches)
+    const songs = r.searchResult3?.song || []
+    if (songs.some((s) =>
+      s.title?.toLowerCase() === lTitle &&
+      s.artist?.toLowerCase() === lArtist
+    )) return true
+
+    // Check albums (for album searches — title is the album name)
+    const albums = r.searchResult3?.album || []
+    if (albums.some((a) =>
+      a.name?.toLowerCase() === lTitle &&
+      a.artist?.toLowerCase() === lArtist
+    )) return true
+
+    return false
   } catch {
-    // Don't block submissions if Navidrome is unreachable
     return false
   }
 }

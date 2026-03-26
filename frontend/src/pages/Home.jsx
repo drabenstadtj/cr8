@@ -30,6 +30,7 @@ export default function Home() {
       <Nav />
       <div className="wrap">
         {error && <p className={styles.error}>{error}</p>}
+        <h2 className={styles.heading}>Recently Requested</h2>
         {activity.length === 0 && !error && (
           <p className={styles.empty}>No requests yet.</p>
         )}
