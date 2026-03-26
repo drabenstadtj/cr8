@@ -1,6 +1,8 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
+import helmet from '@fastify/helmet'
+import rateLimit from '@fastify/rate-limit'
 import { PrismaClient } from '@prisma/client'
 import authRoutes from './routes/auth.js'
 import searchRoutes from './routes/search.js'
@@ -18,12 +20,28 @@ const app = Fastify({
       res: (res) => `${res.statusCode}`,
     },
   } : true,
+  bodyLimit: 65536, // 64KB max body
+})
+
+await app.register(helmet, {
+  contentSecurityPolicy: false, // CSP handled by frontend build
 })
 
 await app.register(cors, {
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
 })
+
+await app.register(rateLimit, {
+  global: false, // apply per-route only
+})
+
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'changeme') {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set in production')
+  }
+  app.log.warn('JWT_SECRET not set — using insecure default (dev only)')
+}
 
 await app.register(jwt, {
   secret: process.env.JWT_SECRET || 'changeme',
@@ -61,7 +79,7 @@ await app.register(requestRoutes, { prefix: '/requests' })
 await app.register(adminRoutes, { prefix: '/admin' })
 
 app.get('/health', async () => ({ ok: true }))
-app.get('/config', async () => ({ navidromeUrl: process.env.NAVIDROME_URL || null }))
+app.get('/config', { onRequest: [app.authenticate] }, async () => ({ navidromeUrl: process.env.NAVIDROME_URL || null }))
 
 const port = parseInt(process.env.PORT || '3000')
 await app.listen({ port, host: '0.0.0.0' })

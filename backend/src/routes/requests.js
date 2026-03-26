@@ -17,6 +17,15 @@ export default async function requestRoutes(app) {
       return reply.code(400).send({ error: 'mbid, title, and artist are required' })
     }
 
+    if (!/^[0-9a-f-]{36}$/.test(mbid)) return reply.code(400).send({ error: 'Invalid mbid' })
+    if (title.length > 500) return reply.code(400).send({ error: 'title too long' })
+    if (artist.length > 500) return reply.code(400).send({ error: 'artist too long' })
+    if (album && album.length > 500) return reply.code(400).send({ error: 'album too long' })
+    if (!['TRACK', 'ALBUM'].includes(type)) return reply.code(400).send({ error: 'type must be TRACK or ALBUM' })
+
+    // Only allow http/https URLs for coverArt, and only from trusted domains
+    const safeCoverArt = coverArt && /^https?:\/\/coverartarchive\.org\//.test(coverArt) ? coverArt : null
+
     // Check for duplicate request by MBID
     const existing = await req.prisma.request.findFirst({ where: { mbid } })
     if (existing) {
@@ -36,7 +45,7 @@ export default async function requestRoutes(app) {
     let request
     try {
       request = await req.prisma.request.create({
-        data: { mbid, title, artist, album, type, coverArt: coverArt || null, userId: req.user.id, status },
+        data: { mbid, title, artist, album, type, coverArt: safeCoverArt, userId: req.user.id, status },
       })
     } catch (err) {
       if (err.code === 'P2003') {
