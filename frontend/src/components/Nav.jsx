@@ -41,7 +41,7 @@ export default function Nav() {
             {navidromeUrl && (
                 <a
                     className={styles.link}
-                    href={`${navidromeUrl}/app/`}
+                    href={navidromeUrl}
                     target="_blank"
                     rel="noreferrer"
                 >

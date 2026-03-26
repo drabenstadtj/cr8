@@ -23,9 +23,10 @@ async function slskdFetch(path, options = {}) {
   return res.json()
 }
 
-// Strip to lowercase alphanumeric+spaces for fuzzy matching
+// Strip punctuation/symbols but keep all Unicode letters and numbers (including CJK etc.)
+// Characters in the query come from MusicBrainz and are valid for matching.
 function alnumOnly(str) {
-  return str.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+  return str.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
 }
 
 // Strip featuring credits: "Artist ft. X", "Artist feat. X", "Artist (feat. X)"
@@ -126,7 +127,6 @@ export function collectCandidates(responses, { title, artist, album, durationS }
   const candidates = []
 
   for (const response of responses) {
-    if (!response.hasFreeUploadSlot) continue
     for (const file of response.files || []) {
       const ext = getExtension(file)
       const extRank = PREFERRED_EXTS.indexOf(ext)
@@ -159,12 +159,13 @@ export function collectCandidates(responses, { title, artist, album, durationS }
         bitrate,
         bitDepth,
         extRank,
+        freeSlot: response.hasFreeUploadSlot ? 0 : 1,
       })
     }
   }
 
-  // Sort: best extension first, then highest bitrate
-  candidates.sort((a, b) => a.extRank - b.extRank || b.bitrate - a.bitrate)
+  // Sort: free slot first, then best extension, then highest bitrate
+  candidates.sort((a, b) => a.freeSlot - b.freeSlot || a.extRank - b.extRank || b.bitrate - a.bitrate)
   return candidates.slice(0, DOWNLOAD_ATTEMPTS)
 }
 
@@ -176,7 +177,6 @@ export function collectAlbumCandidates(responses, { artist, album }) {
   const groups = new Map() // key: "username\0directory"
 
   for (const response of responses) {
-    if (!response.hasFreeUploadSlot) continue
     for (const file of response.files || []) {
       const ext = getExtension(file)
       if (PREFERRED_EXTS.indexOf(ext) === -1) continue
@@ -196,6 +196,7 @@ export function collectAlbumCandidates(responses, { artist, album }) {
           files: [],
           extRankSum: 0,
           bitrateSum: 0,
+          freeSlot: response.hasFreeUploadSlot ? 0 : 1,
         })
       }
       const g = groups.get(key)
@@ -211,8 +212,9 @@ export function collectAlbumCandidates(responses, { artist, album }) {
     (g) => g.files.length >= 2 && !hasDuplicateTracks(g.files)
   )
 
-  // Sort: most files first, then best average extension rank, then highest avg bitrate
+  // Sort: free slot first, most files, best avg extension, highest avg bitrate
   candidates.sort((a, b) => {
+    if (a.freeSlot !== b.freeSlot) return a.freeSlot - b.freeSlot
     if (b.files.length !== a.files.length) return b.files.length - a.files.length
     const aExtAvg = a.extRankSum / a.files.length
     const bExtAvg = b.extRankSum / b.files.length
