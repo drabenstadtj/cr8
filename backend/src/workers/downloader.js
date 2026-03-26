@@ -144,8 +144,16 @@ async function pollDownloads(prisma, requests, log) {
           await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
         }
       } else if (anyFailed) {
-        log.warn({ id: request.id }, 'Album download has failed tracks')
-        await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
+        const allRejected = dirFiles
+          .filter((f) => f.state?.startsWith('Completed,'))
+          .every((f) => f.state === 'Completed, Rejected')
+        if (allRejected) {
+          log.warn({ id: request.id, user: request.slskdUsername }, 'Album rejected by peer — retrying with new search')
+          await prisma.request.update({ where: { id: request.id }, data: { status: 'APPROVED', slskdUsername: null, slskdFilename: null } })
+        } else {
+          log.warn({ id: request.id }, 'Album download has failed tracks')
+          await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
+        }
       }
     } else {
       const match = allFiles.find(
@@ -158,6 +166,9 @@ async function pollDownloads(prisma, requests, log) {
         log.info({ id: request.id }, 'Download complete')
         await prisma.request.update({ where: { id: request.id }, data: { status: 'COMPLETE' } })
         await cleanupDownload(request.slskdUsername, match.id)
+      } else if (match.state === 'Completed, Rejected') {
+        log.warn({ id: request.id, user: request.slskdUsername }, 'Track rejected by peer — retrying with new search')
+        await prisma.request.update({ where: { id: request.id }, data: { status: 'APPROVED', slskdUsername: null, slskdFilename: null } })
       } else if (match.state?.startsWith('Completed,')) {
         log.warn({ id: request.id, state: match.state }, 'Download failed')
         await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })

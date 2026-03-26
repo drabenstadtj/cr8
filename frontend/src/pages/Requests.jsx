@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../api.js";
 import Nav from "../components/Nav.jsx";
+import { useConfig } from "../App.jsx";
 import styles from "./Requests.module.css";
 
 const STATUS_LABEL = {
@@ -14,6 +15,7 @@ const STATUS_LABEL = {
 };
 
 export default function Requests() {
+    const { navidromeUrl } = useConfig();
     const [requests, setRequests] = useState([]);
     const [error, setError] = useState("");
 
@@ -45,6 +47,12 @@ export default function Requests() {
                                 <span className={styles.rejectedReason}>
                                     {r.rejectedReason}
                                 </span>
+                            )}
+                            {r.status === "COMPLETE" && navidromeUrl && (
+                                <button className={styles.listenLink} onClick={async () => {
+                                    const { url } = await api.get(`/requests/${r.id}/listen`)
+                                    window.open(url, '_blank', 'noreferrer')
+                                }}>Listen ↗</button>
                             )}
                         </li>
                     ))}

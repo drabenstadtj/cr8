@@ -1,0 +1,102 @@
+.error,
+.empty {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 24px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1px;
+    margin-top: 24px;
+    /* border: var(--border); */
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    border: var(--border);
+    overflow: hidden;
+}
+
+.art {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+}
+
+.artPlaceholder {
+    width: 100%;
+    aspect-ratio: 1;
+    background: #111;
+}
+
+.info {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+}
+
+.title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.artist {
+    font-size: 0.75rem;
+    color: var(--muted);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.footer {
+    margin-top: 8px;
+}
+
+.status {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666;
+}
+
+.statusDOWNLOADING,
+.statusSEARCHING {
+    color: var(--fg);
+}
+
+.statusCOMPLETE {
+    color: #555;
+}
+
+.listenLink {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    margin-left: 8px;
+}
+
+.listenLink:hover {
+    color: var(--fg);
+}
+
+.statusFAILED {
+    color: #555;
+    text-decoration: line-through;
+}

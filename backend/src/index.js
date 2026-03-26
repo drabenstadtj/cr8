@@ -61,6 +61,7 @@ await app.register(requestRoutes, { prefix: '/requests' })
 await app.register(adminRoutes, { prefix: '/admin' })
 
 app.get('/health', async () => ({ ok: true }))
+app.get('/config', async () => ({ navidromeUrl: process.env.NAVIDROME_URL || null }))
 
 const port = parseInt(process.env.PORT || '3000')
 await app.listen({ port, host: '0.0.0.0' })

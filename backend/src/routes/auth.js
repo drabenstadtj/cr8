@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt'
+import { createNavidromeUser } from '../services/navidrome.js'
 
 export default async function authRoutes(app) {
   // POST /auth/register
@@ -28,6 +29,12 @@ export default async function authRoutes(app) {
       where: { token },
       data: { usedBy: user.id, usedAt: new Date() },
     })
+
+    try {
+      await createNavidromeUser(username, password)
+    } catch (err) {
+      app.log.warn({ err: err.message }, 'Failed to create Navidrome user — continuing anyway')
+    }
 
     const jwtToken = app.jwt.sign({ id: user.id, username: user.username, role: user.role })
     return reply.send({ token: jwtToken })

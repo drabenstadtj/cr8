@@ -38,6 +38,7 @@ const [query, setQuery] = useState('')
         artist: result.artist,
         album: result.album,
         type: type === 'recordings' ? 'TRACK' : 'ALBUM',
+        coverArt: result.coverArt || null,
       })
       setRequested((prev) => new Set(prev).add(result.mbid))
     } catch (err) {

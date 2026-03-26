@@ -7,6 +7,11 @@ const MIN_BIT_DEPTH = 0
 const DURATION_TOLERANCE_S = 10
 const DOWNLOAD_ATTEMPTS = 3
 
+// Keywords to reject if they appear in a filename but NOT in the track title/artist
+const BLACKLIST_KEYWORDS = ['karaoke', 'instrumental', 'acappella', 'cover', 'bootleg', 'tribute']
+// These need word-boundary checks because they're common words
+const BLACKLIST_WORD_KEYWORDS = ['live']
+
 function headers() {
   return { 'X-API-Key': API_KEY(), 'Content-Type': 'application/json' }
 }
@@ -21,6 +26,34 @@ async function slskdFetch(path, options = {}) {
 // Strip to lowercase alphanumeric+spaces for fuzzy matching
 function alnumOnly(str) {
   return str.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+// Strip featuring credits: "Artist ft. X", "Artist feat. X", "Artist (feat. X)"
+function mainArtist(artist) {
+  return alnumOnly(
+    (artist || '').replace(/\s*[\(\[]?(?:ft|feat|featuring|with)\.?\s+.*/i, '').trim()
+  )
+}
+
+// Check all significant words (>2 chars) from query appear in filename
+function wordMatch(sanitizedFilename, sanitizedQuery) {
+  if (!sanitizedQuery) return false
+  const words = sanitizedQuery.split(' ').filter((w) => w.length > 2)
+  if (!words.length) return sanitizedFilename.includes(sanitizedQuery)
+  return words.every((w) => sanitizedFilename.includes(w))
+}
+
+// Return true if the filename contains a blacklisted keyword that isn't in the track title/artist
+function hasBlacklistedKeyword(sanitizedFilename, sanitizedTitle, sanitizedArtist) {
+  for (const kw of BLACKLIST_KEYWORDS) {
+    if (sanitizedTitle.includes(kw) || sanitizedArtist.includes(kw)) continue
+    if (sanitizedFilename.includes(kw)) return true
+  }
+  for (const kw of BLACKLIST_WORD_KEYWORDS) {
+    if (sanitizedTitle.includes(kw) || sanitizedArtist.includes(kw)) continue
+    if (new RegExp(`\\b${kw}\\b`).test(sanitizedFilename)) return true
+  }
+  return false
 }
 
 function getExtension(file) {
@@ -87,7 +120,7 @@ function hasDuplicateTracks(files) {
 // Collect and rank all matching candidates from search responses
 export function collectCandidates(responses, { title, artist, album, durationS }) {
   const sanitizedTitle = alnumOnly(title)
-  const sanitizedArtist = alnumOnly(artist || '')
+  const sanitizedMainArtist = mainArtist(artist)
   const sanitizedAlbum = alnumOnly(album || '')
 
   const candidates = []
@@ -101,10 +134,12 @@ export function collectCandidates(responses, { title, artist, album, durationS }
 
       const sanitizedFilename = alnumOnly(file.filename)
 
-      const titleMatch = sanitizedFilename.includes(sanitizedTitle)
+      if (hasBlacklistedKeyword(sanitizedFilename, sanitizedTitle, sanitizedMainArtist)) continue
+
+      const titleMatch = wordMatch(sanitizedFilename, sanitizedTitle)
       const artistOrAlbumMatch =
-        (sanitizedArtist && sanitizedFilename.includes(sanitizedArtist)) ||
-        (sanitizedAlbum && sanitizedFilename.includes(sanitizedAlbum))
+        (sanitizedMainArtist && wordMatch(sanitizedFilename, sanitizedMainArtist)) ||
+        (sanitizedAlbum && wordMatch(sanitizedFilename, sanitizedAlbum))
       if (!titleMatch || !artistOrAlbumMatch) continue
 
       if (durationS && file.length) {
@@ -135,7 +170,7 @@ export function collectCandidates(responses, { title, artist, album, durationS }
 
 // Collect album candidates: groups files by (username, directory), returns best groups
 export function collectAlbumCandidates(responses, { artist, album }) {
-  const sanitizedArtist = alnumOnly(artist || '')
+  const sanitizedArtist = mainArtist(artist)
   const sanitizedAlbum = alnumOnly(album || '')
 
   const groups = new Map() // key: "username\0directory"
@@ -149,8 +184,8 @@ export function collectAlbumCandidates(responses, { artist, album }) {
       const dir = getDirectory(file.filename)
       const sanitizedDir = alnumOnly(dir)
 
-      const artistMatch = sanitizedArtist && sanitizedDir.includes(sanitizedArtist)
-      const albumMatch = sanitizedAlbum && sanitizedDir.includes(sanitizedAlbum)
+      const artistMatch = sanitizedArtist && wordMatch(sanitizedDir, sanitizedArtist)
+      const albumMatch = sanitizedAlbum && wordMatch(sanitizedDir, sanitizedAlbum)
       if (!artistMatch && !albumMatch) continue
 
       const key = `${response.username}\0${dir}`

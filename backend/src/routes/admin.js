@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { deleteNavidromeUser } from '../services/navidrome.js'
 
 export default async function adminRoutes(app) {
   // GET /admin/requests — all requests
@@ -57,7 +58,13 @@ export default async function adminRoutes(app) {
 
   // GET /admin/invites
   app.get('/invites', { onRequest: [app.requireAdmin] }, async (req) => {
-    return req.prisma.invite.findMany({ orderBy: { id: 'desc' } })
+    const invites = await req.prisma.invite.findMany({ orderBy: { id: 'desc' } })
+    const usedIds = invites.map((i) => i.usedBy).filter(Boolean)
+    const users = usedIds.length
+      ? await req.prisma.user.findMany({ where: { id: { in: usedIds } }, select: { id: true, username: true } })
+      : []
+    const userMap = Object.fromEntries(users.map((u) => [u.id, u.username]))
+    return invites.map((i) => ({ ...i, usedByUsername: i.usedBy ? userMap[i.usedBy] || null : null }))
   })
 
   // DELETE /admin/requests/:id
@@ -69,11 +76,36 @@ export default async function adminRoutes(app) {
     return reply.code(204).send()
   })
 
+  // DELETE /admin/invites/:id
+  app.delete('/invites/:id', { onRequest: [app.requireAdmin] }, async (req, reply) => {
+    const invite = await req.prisma.invite.findUnique({ where: { id: req.params.id } })
+    if (!invite) return reply.code(404).send({ error: 'Not found' })
+    await req.prisma.invite.delete({ where: { id: req.params.id } })
+    return reply.code(204).send()
+  })
+
   // GET /admin/users
   app.get('/users', { onRequest: [app.requireAdmin] }, async (req) => {
     return req.prisma.user.findMany({
       select: { id: true, username: true, role: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     })
+  })
+
+  // DELETE /admin/users/:id
+  app.delete('/users/:id', { onRequest: [app.requireAdmin] }, async (req, reply) => {
+    if (req.params.id === req.user.id) {
+      return reply.code(400).send({ error: 'Cannot delete yourself' })
+    }
+    const user = await req.prisma.user.findUnique({ where: { id: req.params.id } })
+    if (!user) return reply.code(404).send({ error: 'Not found' })
+    await req.prisma.request.deleteMany({ where: { userId: req.params.id } })
+    await req.prisma.user.delete({ where: { id: req.params.id } })
+    try {
+      await deleteNavidromeUser(user.username)
+    } catch (err) {
+      req.log.warn({ err: err.message }, 'Failed to delete Navidrome user — cr8 user still removed')
+    }
+    return reply.code(204).send()
   })
 }

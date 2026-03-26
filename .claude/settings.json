@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s \"https://api.github.com/repos/drabenstadtj/Explo/contents/src/downloader/downloader.go?ref=dev\")"
+    ]
+  }
+}

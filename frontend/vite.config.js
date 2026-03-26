@@ -9,6 +9,8 @@ export default defineConfig({
       '/search': 'http://localhost:3000',
       '/requests': 'http://localhost:3000',
       '/admin': 'http://localhost:3000',
+      '/config': 'http://localhost:3000',
+      '/health': 'http://localhost:3000',
     },
   },
 })

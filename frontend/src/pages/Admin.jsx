@@ -3,15 +3,32 @@ import { api } from '../api.js'
 import Nav from '../components/Nav.jsx'
 import styles from './Admin.module.css'
 
+const STATUS_LABEL = {
+  PENDING: 'Pending',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  SEARCHING: 'Searching',
+  DOWNLOADING: 'Downloading',
+  COMPLETE: 'Complete',
+  FAILED: 'Failed',
+}
+
 export default function Admin() {
   const [requests, setRequests] = useState([])
-  const [inviteResult, setInviteResult] = useState('')
+  const [invites, setInvites] = useState([])
+  const [users, setUsers] = useState([])
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.get('/admin/requests')
-      .then(setRequests)
-      .catch(() => setError('Failed to load requests'))
+    Promise.all([
+      api.get('/admin/requests'),
+      api.get('/admin/invites'),
+      api.get('/admin/users'),
+    ]).then(([reqs, invs, usrs]) => {
+      setRequests(reqs)
+      setInvites(invs)
+      setUsers(usrs)
+    }).catch(() => setError('Failed to load admin data'))
   }, [])
 
   async function handleAction(id, action, reason) {
@@ -23,7 +40,7 @@ export default function Admin() {
     }
   }
 
-  async function handleDelete(id) {
+  async function handleDeleteRequest(id) {
     try {
       await api.delete(`/admin/requests/${id}`)
       setRequests((prev) => prev.filter((r) => r.id !== id))
@@ -35,10 +52,32 @@ export default function Admin() {
   async function generateInvite() {
     try {
       const invite = await api.post('/admin/invites', {})
-      setInviteResult(`${window.location.origin}/register?token=${invite.token}`)
+      setInvites((prev) => [invite, ...prev])
     } catch {
       setError('Failed to generate invite')
     }
+  }
+
+  async function revokeInvite(id) {
+    try {
+      await api.delete(`/admin/invites/${id}`)
+      setInvites((prev) => prev.filter((i) => i.id !== id))
+    } catch {
+      setError('Failed to revoke invite')
+    }
+  }
+
+  async function deleteUser(id) {
+    try {
+      await api.delete(`/admin/users/${id}`)
+      setUsers((prev) => prev.filter((u) => u.id !== id))
+    } catch (err) {
+      setError(err.data?.error || 'Failed to delete user')
+    }
+  }
+
+  function copyInviteLink(token) {
+    navigator.clipboard.writeText(`${window.location.origin}/register?token=${token}`)
   }
 
   const pending = requests.filter((r) => r.status === 'PENDING')
@@ -53,20 +92,17 @@ export default function Admin() {
 
         <section className={styles.section}>
           <h3>Pending requests</h3>
-          {pending.length === 0 && <p>None.</p>}
+          {pending.length === 0 && <p className={styles.empty}>None.</p>}
           <ul className={styles.list}>
             {pending.map((r) => (
               <li key={r.id} className={styles.item}>
                 <span className={styles.itemInfo}>
                   <strong>{r.title}</strong> — {r.artist}
-                  <span className={styles.itemBy}> by {r.user?.username}</span>
+                  <span className={styles.itemMeta}> by {r.user?.username}</span>
                 </span>
-                <button className={styles.approveButton} onClick={() => handleAction(r.id, 'approve')}>Approve</button>
-                <button className={styles.rejectButton} onClick={() => {
-                  const reason = prompt('Rejection reason (optional):')
-                  handleAction(r.id, 'reject', reason)
-                }}>Reject</button>
-                <button className={styles.deleteButton} onClick={() => handleDelete(r.id)}>Delete</button>
+                <button onClick={() => handleAction(r.id, 'approve')}>Approve</button>
+                <button onClick={() => handleAction(r.id, 'reject', prompt('Rejection reason (optional):'))}>Reject</button>
+                <button className={styles.dimButton} onClick={() => handleDeleteRequest(r.id)}>Delete</button>
               </li>
             ))}
           </ul>
@@ -74,21 +110,66 @@ export default function Admin() {
 
         <section className={styles.section}>
           <h3>All requests</h3>
+          {others.length === 0 && <p className={styles.empty}>None.</p>}
           <ul className={styles.list}>
             {others.map((r) => (
               <li key={r.id} className={styles.item}>
-                <span className={styles.itemInfo}><strong>{r.title}</strong> — {r.artist}</span>
-                <span className={styles.itemBy}>{r.status}</span>
-                <button className={styles.deleteButton} onClick={() => handleDelete(r.id)}>Delete</button>
+                <span className={styles.itemInfo}>
+                  <strong>{r.title}</strong> — {r.artist}
+                </span>
+                <span className={styles.badge}>{STATUS_LABEL[r.status] || r.status}</span>
+                <button className={styles.dimButton} onClick={() => handleDeleteRequest(r.id)}>Delete</button>
               </li>
             ))}
           </ul>
         </section>
 
         <section className={styles.section}>
-          <h3>Invite</h3>
-          <button className={styles.inviteButton} onClick={generateInvite}>Generate invite link</button>
-          {inviteResult && <p className={styles.inviteResult}>{inviteResult}</p>}
+          <div className={styles.sectionHeader}>
+            <h3>Invites</h3>
+            <button onClick={generateInvite}>Generate</button>
+          </div>
+          {invites.length === 0 && <p className={styles.empty}>No invites yet.</p>}
+          <ul className={styles.list}>
+            {invites.map((inv) => (
+              <li key={inv.id} className={styles.item}>
+                <span className={styles.itemInfo}>
+                  <span className={styles.token}>{inv.token.slice(0, 16)}…</span>
+                  {inv.usedAt
+                    ? <span className={styles.itemMeta}> user created: {inv.usedByUsername || inv.usedBy || 'unknown'}</span>
+                    : inv.expiresAt && new Date(inv.expiresAt) < new Date()
+                      ? <span className={styles.itemMeta}> expired</span>
+                      : <span className={styles.itemMeta}> unused</span>
+                  }
+                </span>
+                {!inv.usedAt && (
+                  <button className={styles.dimButton} onClick={() => copyInviteLink(inv.token)}>Copy link</button>
+                )}
+                {!inv.usedAt && (
+                  <button className={styles.dimButton} onClick={() => revokeInvite(inv.id)}>Revoke</button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className={styles.section}>
+          <h3>Users</h3>
+          {users.length === 0 && <p className={styles.empty}>No users.</p>}
+          <ul className={styles.list}>
+            {users.map((u) => (
+              <li key={u.id} className={styles.item}>
+                <span className={styles.itemInfo}>
+                  <strong>{u.username}</strong>
+                </span>
+                <span className={styles.badge}>{u.role}</span>
+                <span className={styles.itemMeta}>{new Date(u.createdAt).toLocaleDateString()}</span>
+                {u.role !== 'ADMIN' && (
+                  <button className={styles.dimButton} onClick={() => deleteUser(u.id)}>Delete</button>
+                )}
+              </li>
+            ))}
+          </ul>
         </section>
       </div>
     </>

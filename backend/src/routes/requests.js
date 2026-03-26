@@ -1,4 +1,4 @@
-import { checkDuplicateInLibrary } from '../services/navidrome.js'
+import { checkDuplicateInLibrary, findNavidromeUrl } from '../services/navidrome.js'
 
 export default async function requestRoutes(app) {
   // GET /requests — current user's requests
@@ -11,7 +11,7 @@ export default async function requestRoutes(app) {
 
   // POST /requests — submit a new request
   app.post('/', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const { mbid, title, artist, album, type = 'TRACK' } = req.body
+    const { mbid, title, artist, album, type = 'TRACK', coverArt } = req.body
 
     if (!mbid || !title || !artist) {
       return reply.code(400).send({ error: 'mbid, title, and artist are required' })
@@ -33,11 +33,45 @@ export default async function requestRoutes(app) {
     }
 
     const status = req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING'
-    const request = await req.prisma.request.create({
-      data: { mbid, title, artist, album, type, userId: req.user.id, status },
-    })
+    let request
+    try {
+      request = await req.prisma.request.create({
+        data: { mbid, title, artist, album, type, coverArt: coverArt || null, userId: req.user.id, status },
+      })
+    } catch (err) {
+      if (err.code === 'P2003') {
+        return reply.code(401).send({ error: 'Session invalid — please log in again' })
+      }
+      throw err
+    }
 
     return reply.code(201).send(request)
+  })
+
+  // GET /requests/activity — recent requests across all users (limited fields)
+  app.get('/activity', { onRequest: [app.authenticate] }, async (req) => {
+    return req.prisma.request.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+      select: { id: true, title: true, artist: true, album: true, type: true, status: true, createdAt: true, coverArt: true },
+    })
+  })
+
+  // GET /requests/stats — counts by status
+  app.get('/stats', { onRequest: [app.authenticate] }, async (req) => {
+    const rows = await req.prisma.request.groupBy({
+      by: ['status'],
+      _count: { status: true },
+    })
+    return Object.fromEntries(rows.map((r) => [r.status, r._count.status]))
+  })
+
+  // GET /requests/:id/listen — resolve Navidrome deep link
+  app.get('/:id/listen', { onRequest: [app.authenticate] }, async (req, reply) => {
+    const request = await req.prisma.request.findUnique({ where: { id: req.params.id } })
+    if (!request) return reply.code(404).send({ error: 'Not found' })
+    const url = await findNavidromeUrl(request.title, request.artist, request.type)
+    return { url }
   })
 
   // GET /requests/:id
