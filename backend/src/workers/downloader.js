@@ -9,6 +9,7 @@ import {
   deleteSearch,
   cleanupDownload,
 } from '../services/slskd.js'
+import { triggerBetaninImport } from '../services/betanin.js'
 
 const POLL_INTERVAL_MS = 15000
 
@@ -140,6 +141,9 @@ async function pollDownloads(prisma, requests, log) {
       if (allSucceeded) {
         log.info({ id: request.id, tracks: dirFiles.length }, 'Album download complete')
         await prisma.request.update({ where: { id: request.id }, data: { status: 'COMPLETE' } })
+        await triggerBetaninImport(`${request.artist} - ${request.album || request.title}`).catch(
+          (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
+        )
         for (const f of dirFiles) {
           await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
         }
@@ -165,6 +169,9 @@ async function pollDownloads(prisma, requests, log) {
       if (match.state === 'Completed, Succeeded') {
         log.info({ id: request.id }, 'Download complete')
         await prisma.request.update({ where: { id: request.id }, data: { status: 'COMPLETE' } })
+        await triggerBetaninImport(`${request.artist} - ${request.title}`).catch(
+          (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
+        )
         await cleanupDownload(request.slskdUsername, match.id)
       } else if (match.state === 'Completed, Rejected') {
         log.warn({ id: request.id, user: request.slskdUsername }, 'Track rejected by peer — retrying with new search')
