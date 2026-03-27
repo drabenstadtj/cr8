@@ -1,19 +1,63 @@
-.heading {
-    margin: 24px 0 0;
-}
-
-.error,
-.empty {
+.error {
     color: var(--muted);
     font-size: 0.85rem;
     margin-top: 24px;
 }
 
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+.section {
+    margin-top: 32px;
+}
+
+.sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.sectionHeading {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+}
+
+.arrows {
+    display: flex;
+    gap: 4px;
+}
+
+.arrow {
+    background: none;
+    border: 1px solid #333;
+    color: var(--muted);
+    padding: 2px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.arrow:hover {
+    border-color: var(--fg);
+    color: var(--fg);
+    background: none;
+}
+
+.shelf {
+    display: flex;
     gap: 12px;
-    margin-top: 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+}
+
+.shelf::-webkit-scrollbar {
+    display: none;
+}
+
+.empty {
+    color: var(--muted);
+    font-size: 0.85rem;
 }
 
 .card {
@@ -21,6 +65,14 @@
     flex-direction: column;
     border: var(--border);
     overflow: hidden;
+    flex-shrink: 0;
+    width: calc((100% - 12px * 3) / 4);
+}
+
+@media (max-width: 540px) {
+    .card {
+        width: calc((100% - 12px) / 2);
+    }
 }
 
 .art {
@@ -33,7 +85,6 @@
 .artPlaceholder {
     width: 100%;
     aspect-ratio: 1;
-    background: #111;
 }
 
 .info {

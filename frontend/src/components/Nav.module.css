@@ -4,6 +4,7 @@
     gap: 8px;
     border-bottom: var(--border);
     padding: 16px 28px;
+    position: relative;
 }
 
 .logo {
@@ -11,6 +12,28 @@
     font-size: 1.4rem;
     margin-right: auto;
     letter-spacing: 0.05em;
+}
+
+.links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hamburger {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--fg);
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+}
+
+.hamburger:hover {
+    background: none;
+    color: var(--fg);
 }
 
 .link {
@@ -32,4 +55,33 @@
 
 .active {
     border-color: var(--fg);
+}
+
+@media (max-width: 540px) {
+    .nav {
+        padding: 12px 16px;
+        flex-wrap: wrap;
+    }
+
+    .hamburger {
+        display: block;
+    }
+
+    .links {
+        display: none;
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+        padding: 8px 0;
+        gap: 4px;
+    }
+
+    .linksOpen {
+        display: flex;
+    }
+
+    .link {
+        width: 100%;
+        text-align: left;
+    }
 }

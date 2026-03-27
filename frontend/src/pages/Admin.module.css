@@ -41,7 +41,8 @@ h2 {
 .item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 8px 10px;
     padding: 10px 0;
     border-bottom: 1px solid #222;
 }
@@ -49,6 +50,13 @@ h2 {
 .itemInfo {
     flex: 1;
     font-size: 0.95rem;
+    min-width: 0;
+}
+
+@media (max-width: 540px) {
+    .itemInfo {
+        flex-basis: 100%;
+    }
 }
 
 .itemMeta {
@@ -79,13 +87,49 @@ h2 {
 }
 
 .dimButton {
-    color: var(--muted);
-    border-color: #333;
-    font-size: 0.8rem;
+    color: #c07878;
+    border-color: #8a5050;
 }
 
 .dimButton:hover {
     color: var(--bg);
-    background: var(--muted);
-    border-color: var(--muted);
+    background: #c07878;
+    border-color: #c07878;
+}
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.dialog {
+    background: var(--bg);
+    border: var(--border);
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 260px;
+    max-width: 360px;
+    width: calc(100% - 48px);
+}
+
+.dialogMessage {
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.dialogActions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.dialogActions button {
+    flex: 1;
 }

@@ -37,23 +37,25 @@ export default function Requests() {
                 <ul className={styles.list}>
                     {requests.map((r) => (
                         <li key={r.id} className={styles.item}>
-                            <span>
+                            <span className={styles.title}>
                                 <strong>{r.title}</strong> — {r.artist}
                             </span>
-                            <span className={styles.status}>
-                                {STATUS_LABEL[r.status] || r.status}
-                            </span>
-                            {r.status === "REJECTED" && r.rejectedReason && (
-                                <span className={styles.rejectedReason}>
-                                    {r.rejectedReason}
+                            <div className={styles.meta}>
+                                <span className={styles.status}>
+                                    {STATUS_LABEL[r.status] || r.status}
                                 </span>
-                            )}
-                            {r.status === "COMPLETE" && navidromeUrl && (
-                                <button className={styles.listenLink} onClick={async () => {
-                                    const { url } = await api.get(`/requests/${r.id}/listen`)
-                                    window.open(url, '_blank', 'noreferrer')
-                                }}>Listen ↗</button>
-                            )}
+                                {r.status === "REJECTED" && r.rejectedReason && (
+                                    <span className={styles.rejectedReason}>
+                                        {r.rejectedReason}
+                                    </span>
+                                )}
+                                {r.status === "COMPLETE" && navidromeUrl && (
+                                    <button className={styles.listenLink} onClick={async () => {
+                                        const { url } = await api.get(`/requests/${r.id}/listen`)
+                                        window.open(url, '_blank', 'noreferrer')
+                                    }}>Listen ↗</button>
+                                )}
+                            </div>
                         </li>
                     ))}
                 </ul>

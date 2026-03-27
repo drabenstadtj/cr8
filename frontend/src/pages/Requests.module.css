@@ -21,10 +21,20 @@
 
 .item {
     display: flex;
-    align-items: baseline;
-    gap: 12px;
+    flex-direction: column;
+    gap: 4px;
     padding: 12px 0;
     border-bottom: 1px solid #222;
+}
+
+.title {
+    font-size: 1rem;
+}
+
+.meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .status {
@@ -32,7 +42,6 @@
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    margin-left: auto;
 }
 
 .listenLink {

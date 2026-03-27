@@ -1,7 +1,25 @@
+.throbber {
+    display: flex;
+    gap: 6px;
+    margin-top: 48px;
+    justify-content: center;
+}
+
+.throbberPixel {
+    width: 10px;
+    height: 10px;
+    background: #222;
+}
+
+.throbberPixelOn {
+    background: #fff;
+}
+
 .controls {
     display: flex;
     gap: 8px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .typeFilters {
@@ -69,7 +87,6 @@
     width: 120px;
     height: 120px;
     flex-shrink: 0;
-    border: 1px solid #222;
 }
 
 .resultInfo {
@@ -99,10 +116,44 @@
 }
 
 .resultType {
+    display: none;
+}
+
+.resultTypeLabel {
+    font-size: 0.7rem;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    color: #888;
     border: 1px solid #444;
     padding: 1px 5px;
-    color: #888;
+    align-self: flex-start;
+}
+
+@media (max-width: 540px) {
+    .typeFilters {
+        flex-basis: 100%;
+    }
+
+    .typeFilter {
+        flex: 1;
+    }
+
+    .resultArt,
+    .resultArtPlaceholder {
+        width: 72px;
+        height: 72px;
+    }
+
+    .result {
+        height: 112px;
+        overflow: hidden;
+    }
+
+    .resultTitle {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        line-clamp: 2;
+        overflow: hidden;
+    }
 }
