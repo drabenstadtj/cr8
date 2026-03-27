@@ -46,6 +46,32 @@ export async function searchReleases(query) {
   }))
 }
 
+export async function searchArtists(query) {
+  const url = `${BASE}/artist?query=${encodeURIComponent(query)}&limit=15&fmt=json`
+  const data = await mbFetch(url)
+  return data.artists.map((a) => ({
+    mbid: a.id,
+    name: a.name,
+    artistType: a.type,
+    country: a.country,
+    resultType: 'artist',
+  }))
+}
+
+export async function browseReleasesByArtist(artistMbid) {
+  const url = `${BASE}/release?artist=${artistMbid}&limit=20&inc=artist-credits&fmt=json`
+  const data = await mbFetch(url)
+  return data.releases.map((r) => ({
+    mbid: r.id,
+    title: r.title,
+    artist: r['artist-credit']?.[0]?.artist?.name,
+    artistMbid: artistMbid,
+    date: r.date,
+    trackCount: r['track-count'],
+    coverArt: `https://coverartarchive.org/release/${r.id}/front-250`,
+  }))
+}
+
 export async function lookupByMbid(mbid, type = 'recording') {
   let url
   if (type === 'recording') {

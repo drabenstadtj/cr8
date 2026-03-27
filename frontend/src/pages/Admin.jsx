@@ -18,6 +18,7 @@ export default function Admin() {
   const [invites, setInvites] = useState([])
   const [users, setUsers] = useState([])
   const [error, setError] = useState('')
+  const [confirm, setConfirm] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -38,6 +39,10 @@ export default function Admin() {
     } catch (err) {
       setError(err.data?.error || 'Action failed')
     }
+  }
+
+  function ask(message, onConfirm) {
+    setConfirm({ message, onConfirm })
   }
 
   async function handleDeleteRequest(id) {
@@ -102,7 +107,7 @@ export default function Admin() {
                 </span>
                 <button onClick={() => handleAction(r.id, 'approve')}>Approve</button>
                 <button onClick={() => handleAction(r.id, 'reject', prompt('Rejection reason (optional):'))}>Reject</button>
-                <button className={styles.dimButton} onClick={() => handleDeleteRequest(r.id)}>Delete</button>
+                <button className={styles.dimButton} onClick={() => ask(`Delete "${r.title}"?`, () => handleDeleteRequest(r.id))}>Delete</button>
               </li>
             ))}
           </ul>
@@ -118,7 +123,7 @@ export default function Admin() {
                   <strong>{r.title}</strong> — {r.artist}
                 </span>
                 <span className={styles.badge}>{STATUS_LABEL[r.status] || r.status}</span>
-                <button className={styles.dimButton} onClick={() => handleDeleteRequest(r.id)}>Delete</button>
+                <button className={styles.dimButton} onClick={() => ask(`Delete "${r.title}"?`, () => handleDeleteRequest(r.id))}>Delete</button>
               </li>
             ))}
           </ul>
@@ -165,13 +170,25 @@ export default function Admin() {
                 <span className={styles.badge}>{u.role}</span>
                 <span className={styles.itemMeta}>{new Date(u.createdAt).toLocaleDateString()}</span>
                 {u.role !== 'ADMIN' && (
-                  <button className={styles.dimButton} onClick={() => deleteUser(u.id)}>Delete</button>
+                  <button className={styles.dimButton} onClick={() => ask(`Delete user "${u.username}"?`, () => deleteUser(u.id))}>Delete</button>
                 )}
               </li>
             ))}
           </ul>
         </section>
       </div>
+
+      {confirm && (
+        <div className={styles.overlay} onClick={() => setConfirm(null)}>
+          <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.dialogMessage}>{confirm.message}</p>
+            <div className={styles.dialogActions}>
+              <button className={styles.dimButton} onClick={() => setConfirm(null)}>Cancel</button>
+              <button onClick={() => { confirm.onConfirm(); setConfirm(null) }}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

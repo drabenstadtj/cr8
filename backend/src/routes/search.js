@@ -1,4 +1,4 @@
-import { searchRecordings, searchReleases, lookupByMbid } from '../services/musicbrainz.js'
+import { searchRecordings, searchReleases, searchArtists, browseReleasesByArtist, lookupByMbid } from '../services/musicbrainz.js'
 import { checkDuplicateInLibrary } from '../services/navidrome.js'
 
 async function annotateWithLibraryStatus(results) {
@@ -22,6 +22,36 @@ export default async function searchRoutes(app) {
     const { q } = req.query
     if (!q) return reply.code(400).send({ error: 'q is required' })
     const results = await searchReleases(q)
+    return annotateWithLibraryStatus(results)
+  })
+
+  // GET /search/artists?q=name
+  app.get('/artists', { onRequest: [app.authenticate] }, async (req, reply) => {
+    const { q } = req.query
+    if (!q) return reply.code(400).send({ error: 'q is required' })
+    return searchArtists(q)
+  })
+
+  // GET /search/all?q=query
+  app.get('/all', { onRequest: [app.authenticate] }, async (req, reply) => {
+    const { q } = req.query
+    if (!q) return reply.code(400).send({ error: 'q is required' })
+    const [recordings, releases, artists] = await Promise.all([
+      searchRecordings(q).then((r) => annotateWithLibraryStatus(r)),
+      searchReleases(q).then((r) => annotateWithLibraryStatus(r)),
+      searchArtists(q),
+    ])
+    return [
+      ...recordings.map((r) => ({ ...r, resultType: 'recording' })),
+      ...releases.map((r) => ({ ...r, resultType: 'release' })),
+      ...artists,
+    ]
+  })
+
+  // GET /search/artist/:mbid/releases
+  app.get('/artist/:mbid/releases', { onRequest: [app.authenticate] }, async (req, reply) => {
+    const { mbid } = req.params
+    const results = await browseReleasesByArtist(mbid)
     return annotateWithLibraryStatus(results)
   })
 

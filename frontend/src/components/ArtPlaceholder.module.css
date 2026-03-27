@@ -1,0 +1,13 @@
+.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #111;
+    border: 1px solid #222;
+}
+
+.icon {
+    width: 32%;
+    height: 32%;
+    color: #555;
+}
