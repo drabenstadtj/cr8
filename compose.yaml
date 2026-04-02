@@ -48,7 +48,7 @@ services:
     container_name: gonic
     restart: unless-stopped
     ports:
-      - 4533:4747
+      - 4533:80
     environment:
       - TZ=${TZ}
       - GONIC_MUSIC_PATH=/music
