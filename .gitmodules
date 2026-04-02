@@ -1,0 +1,6 @@
+[submodule "Explo"]
+	path = Explo
+	url = git@github.com:drabenstadtj/Explo.git
+[submodule "libraries/libraries/Explo"]
+	path = libraries/libraries/Explo
+	url = git@github.com:drabenstadtj/Explo.git
