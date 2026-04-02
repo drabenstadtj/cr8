@@ -42,6 +42,28 @@ services:
       - music-network
       - reverse-proxy-network
 
+  # Music - Streaming
+  gonic:
+    image: sentriz/gonic:latest
+    container_name: gonic
+    restart: unless-stopped
+    ports:
+      - 4533:4747
+    environment:
+      - TZ=${TZ}
+      - GONIC_MUSIC_PATH=/music
+      - GONIC_CACHE_PATH=/cache
+      - GONIC_DB_PATH=/data/gonic.db
+      - GONIC_PLAYLISTS_PATH=/playlists
+    volumes:
+      - ${CONFIG_PATH}/gonic:/data
+      - ${CONFIG_PATH}/gonic/cache:/cache
+      - ${CONFIG_PATH}/gonic/playlists:/playlists
+      - ${MUSIC_PATH}:/music:ro
+    networks:
+      - reverse-proxy-network
+      - homepage-network
+      - music-network
   betanin:
     image: sentriz/betanin
     container_name: betanin
@@ -118,42 +140,3 @@ networks:
     external: true
   music-network:
     external: true
-  # Music - Streaming
-  # navidrome:
-  #   image: deluan/navidrome:latest
-  #   container_name: navidrome
-  #   user: ${PUID}:${PGID}
-  #   ports:
-  #     - 4533:4533
-  #   restart: unless-stopped
-  #   environment:
-  #     - ND_LASTFM_APIKEY=55cece9cd443c4db991924e9776df03c
-  #     - ND_LASTFM_SECRET=741079ea6fe2545553ade0b54f464f90
-  #     - ND_ENABLESHARING=true
-  #   volumes:
-  #     - ${CONFIG_PATH}/navidrome:/data
-  #     - ${MUSIC_PATH}:/music:ro
-  #   networks:
-  #     - reverse-proxy-network
-  #     - homepage-network
-  #     - music-network
-  # Music - Management (disabled, replaced by betanin)
-  # beets:
-  #   image: lscr.io/linuxserver/beets:latest
-  #   container_name: beets
-  #   environment:
-  #     - PUID=${PUID}
-  #     - PGID=${PGID}
-  #     - TZ=${TZ}
-  #   volumes:
-  #     - ${CONFIG_PATH}/beets:/config
-  #     - ${MUSIC_PATH}:/music
-  #     - ./downloads:/downloads
-  #     - ${MUSIC_PATH}/explo:/explo
-  #     - ./beets-custom-services:/custom-services.d:ro
-  #   ports:
-  #     - 8337:8337
-  #   restart: unless-stopped
-  #   networks:
-  #     - homepage-network
-  #     - music-network
