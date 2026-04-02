@@ -1,0 +1,158 @@
+services:
+  # cr8
+  cr8-backend:
+    container_name: cr8-backend
+    build: ./cr8/backend
+    ports:
+      - 3030:3000
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: file:/data/cr8.db
+      SLSKD_URL: ${SLSKD_URL}
+      SLSKD_API_KEY: ${SLSKD_API_KEY}
+      BETANIN_URL: ${BETANIN_URL:-}
+      BETANIN_API_KEY: ${BETANIN_API_KEY:-}
+      GONIC_URL: ${GONIC_URL}
+      GONIC_PUBLIC_URL: ${GONIC_PUBLIC_URL:-}
+      GONIC_USER: ${GONIC_USER}
+      GONIC_PASSWORD: ${GONIC_PASSWORD}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      DOWNLOAD_DIR: /downloads
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      EXPLO_API_KEY: ${EXPLO_API_KEY:-}
+      NODE_ENV: production
+    volumes:
+      - db_data:/data
+      - ${DOWNLOAD_DIR:-./downloads}:/downloads
+    restart: unless-stopped
+    networks:
+      - music-network
+      - reverse-proxy-network
+  cr8-frontend:
+    container_name: cr8-frontend
+    build: ./cr8/frontend
+    ports:
+      - 5173:80
+    depends_on:
+      - cr8-backend
+    restart: unless-stopped
+    networks:
+      - music-network
+      - reverse-proxy-network
+  # Music - Streaming
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    user: ${PUID}:${PGID}
+    ports:
+      - 4533:4533
+    restart: unless-stopped
+    environment:
+      - ND_LASTFM_APIKEY=55cece9cd443c4db991924e9776df03c
+      - ND_LASTFM_SECRET=741079ea6fe2545553ade0b54f464f90
+      - ND_ENABLESHARING=true
+    volumes:
+      - ${CONFIG_PATH}/navidrome:/data
+      - ${MUSIC_PATH}:/music:ro
+    networks:
+      - reverse-proxy-network
+      - homepage-network
+      - music-network
+  # Music - Management (disabled, replaced by betanin)
+  # beets:
+  #   image: lscr.io/linuxserver/beets:latest
+  #   container_name: beets
+  #   environment:
+  #     - PUID=${PUID}
+  #     - PGID=${PGID}
+  #     - TZ=${TZ}
+  #   volumes:
+  #     - ${CONFIG_PATH}/beets:/config
+  #     - ${MUSIC_PATH}:/music
+  #     - ./downloads:/downloads
+  #     - ${MUSIC_PATH}/explo:/explo
+  #     - ./beets-custom-services:/custom-services.d:ro
+  #   ports:
+  #     - 8337:8337
+  #   restart: unless-stopped
+  #   networks:
+  #     - homepage-network
+  #     - music-network
+  betanin:
+    image: sentriz/betanin
+    container_name: betanin
+    restart: unless-stopped
+    ports:
+      - 9393:9393
+    environment:
+      - UID=${PUID}
+      - GID=${PGID}
+    volumes:
+      - ${CONFIG_PATH}/betanin/data:/b/.local/share/betanin/
+      - ${CONFIG_PATH}/betanin/config:/b/.config/betanin/
+      - ${CONFIG_PATH}/beets:/b/.config/beets/
+      - ${MUSIC_PATH}:/music
+      - ./downloads:/downloads
+      - ${MUSIC_PATH}/explo:/explo
+      - ${CONFIG_PATH}/beets:/config
+    networks:
+      - homepage-network
+      - music-network
+  slskd:
+    image: slskd/slskd:latest
+    container_name: slskd
+    restart: unless-stopped
+    user: 1000:1000
+    ports:
+      - 5030:5030 # Web UI
+      - 50300:50300 # Listening port
+    environment:
+      - SLSKD_REMOTE_CONFIGURATION=true
+      - SLSKD_SLSK_LISTEN_PORT=50300
+      - SLSKD_SLSK_DIAGNOSTIC_LEVEL=Info
+    volumes:
+      - ${CONFIG_PATH}/slskd:/app/config
+      - ./slskd/data:/app/data
+      - ./downloads:/app/downloads
+      - ${CONFIG_PATH}/slskd/slskd.yml:/app/slskd.yml
+      - ./slskd-betanin.sh:/slskd-betanin.sh:ro
+    networks:
+      - music-network
+      - homepage-network
+  explo:
+    build: ./Explo
+    restart: unless-stopped
+    container_name: explo
+    volumes:
+      - ${CONFIG_PATH}/explo/.env:/opt/explo/.env
+      - ${MUSIC_PATH}/explo:/data/
+      - ./downloads:/slskd/
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - SLSKD_ALBUM_MODE=true
+      - WEEKLY_EXPLORATION_SCHEDULE=50 10 * * 2
+      - WEEKLY_JAMS_SCHEDULE=0 8 * * 1
+      - DAILY_JAMS_SCHEDULE=0 8 * * *
+      - WEEKLY_EXPLORATION_FLAGS=
+      - WEEKLY_JAMS_FLAGS=--playlist=weekly-jams --download-mode=skip
+      - DAILY_JAMS_FLAGS=--playlist=daily-jams --download-mode=skip
+      - EXECUTE_ON_START=false
+      - START_FLAGS=--persist=false --download-mode=force
+      - CR8_URL=http://cr8-backend:3000
+      - CR8_API_KEY=${EXPLO_API_KEY}
+    networks:
+      - music-network
+      - homepage-network
+volumes:
+  db_data:
+networks:
+  reverse-proxy-network:
+    external: true
+  homepage-network:
+    external: true
+  music-network:
+    external: true

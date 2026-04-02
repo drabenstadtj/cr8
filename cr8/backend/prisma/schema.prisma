@@ -1,0 +1,47 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String    @id @default(cuid())
+  username             String    @unique
+  password             String
+  role                 String    @default("USER")   // USER | ADMIN
+  listenbrainzUsername String?
+  requests             Request[]
+  createdAt            DateTime  @default(now())
+}
+
+model Invite {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  createdBy String
+  usedBy    String?
+  expiresAt DateTime?
+  usedAt    DateTime?
+}
+
+model Request {
+  id             String   @id @default(cuid())
+  mbid           String
+  title          String
+  artist         String
+  album          String?
+  type           String   @default("TRACK")     // TRACK | ALBUM
+  status         String   @default("PENDING")   // PENDING | APPROVED | REJECTED | SEARCHING | DOWNLOADING | COMPLETE | FAILED
+  rejectedReason String?
+  slskdSearchId  String?
+  slskdUsername  String?
+  slskdFilename  String?
+  coverArt       String?
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

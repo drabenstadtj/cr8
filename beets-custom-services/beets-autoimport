@@ -1,0 +1,20 @@
+#!/usr/bin/with-contenv bash
+echo "**** Starting beets auto-import service ****"
+while true; do
+    echo "$(date): Checking for new files..."
+    if [ -n "$(find /downloads -mindepth 1 -maxdepth 1 -not -name 'incomplete' -mmin +15 2>/dev/null | head -1)" ]; then
+        echo "$(date): Files found in /downloads, importing..."
+        find /downloads -mindepth 1 -maxdepth 1 -not -name 'incomplete' -mmin +15 -type d 2>/dev/null | while IFS= read -r dir; do
+            s6-setuidgid abc beet import "$dir"
+        done
+    else
+        echo "$(date): No files in /downloads"
+    fi
+    if [ -n "$(find /explo -mindepth 1 -maxdepth 1 -mmin +15 2>/dev/null | head -1)" ]; then
+        echo "$(date): Files found in /explo, importing..."
+        s6-setuidgid abc beet import /explo
+    else
+        echo "$(date): No files in /explo"
+    fi
+    sleep 60 
+done
