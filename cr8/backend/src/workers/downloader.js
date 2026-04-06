@@ -141,7 +141,8 @@ async function pollDownloads(prisma, requests, log) {
       if (allSucceeded) {
         log.info({ id: request.id, tracks: dirFiles.length }, 'Album download complete')
         await prisma.request.update({ where: { id: request.id }, data: { status: 'COMPLETE' } })
-        await triggerBetaninImport(`${request.artist} - ${request.album || request.title}`).catch(
+        const dirName = request.slskdFilename.replace(/\\/g, '/').split('/').filter(Boolean).pop()
+        await triggerBetaninImport(dirName).catch(
           (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
         )
         for (const f of dirFiles) {
@@ -169,7 +170,8 @@ async function pollDownloads(prisma, requests, log) {
       if (match.state === 'Completed, Succeeded') {
         log.info({ id: request.id }, 'Download complete')
         await prisma.request.update({ where: { id: request.id }, data: { status: 'COMPLETE' } })
-        await triggerBetaninImport(`${request.artist} - ${request.title}`).catch(
+        const trackDirName = request.slskdFilename.replace(/\\/g, '/').split('/').filter(Boolean).slice(-2, -1)[0] || request.slskdFilename
+        await triggerBetaninImport(trackDirName).catch(
           (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
         )
         await cleanupDownload(request.slskdUsername, match.id)
