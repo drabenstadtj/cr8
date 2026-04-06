@@ -19,6 +19,7 @@ export default function Admin() {
   const [users, setUsers] = useState([])
   const [error, setError] = useState('')
   const [confirm, setConfirm] = useState(null)
+  const [explorationMsg, setExplorationMsg] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -81,6 +82,15 @@ export default function Admin() {
     }
   }
 
+  async function runExploration() {
+    try {
+      await api.post('/admin/exploration/run', {})
+      setExplorationMsg('Exploration triggered — check back shortly for new requests.')
+    } catch {
+      setExplorationMsg('Failed to trigger exploration.')
+    }
+  }
+
   function copyInviteLink(token) {
     navigator.clipboard.writeText(`${window.location.origin}/register?token=${token}`)
   }
@@ -94,6 +104,14 @@ export default function Admin() {
       <div className="wrap">
         <h2>Admin</h2>
         {error && <p className={styles.error}>{error}</p>}
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>Actions</h3>
+            <button onClick={runExploration}>Run exploration</button>
+          </div>
+          {explorationMsg && <p className={styles.empty}>{explorationMsg}</p>}
+        </section>
 
         <section className={styles.section}>
           <h3>Pending requests</h3>

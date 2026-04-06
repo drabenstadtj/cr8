@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { deleteGonicUser } from '../services/gonic.js'
+import { triggerExploration } from '../workers/exploration.js'
 
 export default async function adminRoutes(app) {
   // GET /admin/requests — all requests
@@ -82,6 +83,12 @@ export default async function adminRoutes(app) {
     if (!invite) return reply.code(404).send({ error: 'Not found' })
     await req.prisma.invite.delete({ where: { id: req.params.id } })
     return reply.code(204).send()
+  })
+
+  // POST /admin/exploration/run — force a ListenBrainz exploration run
+  app.post('/exploration/run', { onRequest: [app.requireAdmin] }, async (req, reply) => {
+    triggerExploration(app).catch((e) => app.log.error({ err: e.message }, 'Manual exploration failed'))
+    return reply.code(202).send({ ok: true })
   })
 
   // GET /admin/users

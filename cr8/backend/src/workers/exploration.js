@@ -21,6 +21,11 @@ export function startExplorationWorker(app) {
   setInterval(() => runIfNewWeek(app).catch((e) => app.log.error(e)), CHECK_INTERVAL_MS)
 }
 
+export async function triggerExploration(app) {
+  lastRunWeek = null
+  await runIfNewWeek(app)
+}
+
 async function runIfNewWeek(app) {
   const week = isoWeekKey()
   if (week === lastRunWeek) return
