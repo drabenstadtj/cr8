@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { api } from '../api.js'
 import Nav from '../components/Nav.jsx'
 import ArtImage from '../components/ArtImage.jsx'
@@ -6,7 +6,7 @@ import styles from './Search.module.css'
 
 function BinaryThrobber() {
   const [count, setCount] = useState(0)
-  useEffect(() => {
+  useState(() => {
     const id = setInterval(() => setCount((c) => (c + 1) % 16), 150)
     return () => clearInterval(id)
   }, [])
@@ -22,6 +22,8 @@ function BinaryThrobber() {
   )
 }
 
+const PAGE_SIZE = 20
+
 const TYPES = [
   { value: 'all', label: 'All' },
   { value: 'recordings', label: 'Tracks' },
@@ -30,20 +32,36 @@ const TYPES = [
 ]
 
 export default function Search() {
-  const [query, setQuery] = useState('')
   const [type, setType] = useState('all')
+  const [title, setTitle] = useState('')
+  const [artist, setArtist] = useState('')
+  const [album, setAlbum] = useState('')
   const [results, setResults] = useState([])
+  const [total, setTotal] = useState(null)
+  const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(null)
   const [requested, setRequested] = useState(new Set())
 
-  async function doSearch(q, t) {
+  async function doSearch(t, off = 0) {
     setError('')
     setLoading(true)
     try {
-      const data = await api.get(`/search/${t}?q=${encodeURIComponent(q)}`)
-      setResults(data)
+      const params = new URLSearchParams({ offset: off })
+      if (title) params.set('title', title)
+      if (artist) params.set('artist', artist)
+      if (album && t === 'recordings') params.set('album', album)
+      if (t === 'artists') {
+        params.delete('title')
+        params.delete('artist')
+        params.set('name', title || artist)
+      }
+
+      const data = await api.get(`/search/${t}?${params}`)
+      setResults(data.results)
+      setTotal(data.total)
+      setOffset(off)
     } catch (err) {
       setError(err.data?.error || 'Search failed')
     } finally {
@@ -51,25 +69,35 @@ export default function Search() {
     }
   }
 
-  function handleSearch(e) {
-    e.preventDefault()
-    if (!query.trim()) return
-    doSearch(query, type)
-  }
-
-  async function browseArtist(artist) {
-    setQuery(artist.name)
+  async function browseArtist(mbid, name) {
+    setTitle(name)
+    setArtist('')
     setType('releases')
     setError('')
     setLoading(true)
     try {
-      const data = await api.get(`/search/artist/${artist.mbid}/releases`)
-      setResults(data)
+      const data = await api.get(`/search/artist/${mbid}/releases?offset=0`)
+      setResults(data.results)
+      setTotal(data.total)
+      setOffset(0)
     } catch (err) {
       setError(err.data?.error || 'Browse failed')
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleSearch(e) {
+    e.preventDefault()
+    if (!title.trim() && !artist.trim()) return
+    doSearch(type, 0)
+  }
+
+  function handleTypeChange(t) {
+    setType(t)
+    setResults([])
+    setTotal(null)
+    setOffset(0)
   }
 
   async function handleRequest(result) {
@@ -97,12 +125,20 @@ export default function Search() {
     }
   }
 
+  function mbUrl(r) {
+    const t = r.resultType === 'recording' ? 'recording' : r.resultType === 'artist' ? 'artist' : 'release'
+    return `https://musicbrainz.org/${t}/${r.mbid}`
+  }
+
   function typeLabel(r) {
     if (r.resultType === 'recording' || type === 'recordings') return 'Track'
     if (r.resultType === 'release' || type === 'releases') return 'Album'
     if (r.resultType === 'artist' || type === 'artists') return 'Artist'
     return ''
   }
+
+  const page = Math.floor(offset / PAGE_SIZE) + 1
+  const totalPages = total ? Math.ceil(total / PAGE_SIZE) : null
 
   return (
     <>
@@ -115,18 +151,36 @@ export default function Search() {
                 key={t.value}
                 type="button"
                 className={`${styles.typeFilter} ${type === t.value ? styles.typeFilterActive : ''}`}
-                onClick={() => { setType(t.value); if (query.trim()) doSearch(query, t.value); else setResults([]) }}
+                onClick={() => handleTypeChange(t.value)}
               >
                 {t.label}
               </button>
             ))}
           </div>
-          <input
-            className={styles.input}
-            placeholder="Search artist, title..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <div className={styles.fields}>
+            <input
+              className={styles.input}
+              placeholder={type === 'artists' ? 'Artist name' : 'Title'}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            {type !== 'artists' && (
+              <input
+                className={styles.input}
+                placeholder="Artist"
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+              />
+            )}
+            {type === 'recordings' && (
+              <input
+                className={styles.input}
+                placeholder="Album"
+                value={album}
+                onChange={(e) => setAlbum(e.target.value)}
+              />
+            )}
+          </div>
           <button type="submit">Search</button>
         </form>
 
@@ -146,21 +200,18 @@ export default function Search() {
                 <div className={styles.resultInfo}>
                   <span className={styles.resultTypeLabel}>{label}</span>
                   <div className={styles.resultTitle}>
-                    <a
-                      href={`https://musicbrainz.org/${r.resultType === 'recording' ? 'recording' : r.resultType === 'artist' ? 'artist' : 'release'}/${r.mbid}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                    <a href={mbUrl(r)} target="_blank" rel="noreferrer">
                       {isArtist ? r.name : r.title}
                     </a>
                   </div>
                   <div className={styles.resultMeta}>
-                    <span className={styles.resultType}>{label}</span>
                     {isArtist ? r.artistType : r.artist}
+                    {r.date && <span>{r.date.slice(0, 4)}</span>}
+                    {r.trackCount && <span>{r.trackCount} tracks</span>}
                   </div>
                 </div>
                 {isArtist
-                  ? <button onClick={() => browseArtist(r)}>Browse</button>
+                  ? <button onClick={() => browseArtist(r.mbid, r.name)}>Browse</button>
                   : r.inLibrary
                     ? <span className={styles.inLibrary}>In library</span>
                     : <button
@@ -173,7 +224,15 @@ export default function Search() {
               </li>
             )
           })}
-          </ul>
+        </ul>
+
+        {!loading && totalPages > 1 && (
+          <div className={styles.pagination}>
+            <button disabled={offset === 0} onClick={() => doSearch(type, offset - PAGE_SIZE)}>Prev</button>
+            <span>{page} / {totalPages}</span>
+            <button disabled={offset + PAGE_SIZE >= total} onClick={() => doSearch(type, offset + PAGE_SIZE)}>Next</button>
+          </div>
+        )}
       </div>
     </>
   )

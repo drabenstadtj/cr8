@@ -49,8 +49,25 @@
     color: var(--bg);
 }
 
+.fields {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+}
+
 .input {
     flex: 1;
+    min-width: 0;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+    padding: 24px 0;
+    font-size: 0.85rem;
+    color: var(--muted);
 }
 
 .error {
@@ -141,6 +158,10 @@
 @media (max-width: 540px) {
     .typeFilters {
         flex-basis: 100%;
+    }
+
+    .fields {
+        flex-direction: column;
     }
 
     .typeFilter {

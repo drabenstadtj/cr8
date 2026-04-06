@@ -9,57 +9,60 @@ async function annotateWithLibraryStatus(results) {
 }
 
 export default async function searchRoutes(app) {
-  // GET /search/recordings?q=artist+title
   app.get('/recordings', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const { q } = req.query
-    if (!q) return reply.code(400).send({ error: 'q is required' })
-    const results = await searchRecordings(q)
-    return annotateWithLibraryStatus(results)
+    const { title, artist, album, offset = 0 } = req.query
+    if (!title && !artist && !album) return reply.code(400).send({ error: 'at least one of title, artist, album is required' })
+    const { results, total } = await searchRecordings({ title, artist, album, offset: parseInt(offset) })
+    const annotated = await annotateWithLibraryStatus(results)
+    return { results: annotated, total, offset: parseInt(offset) }
   })
 
-  // GET /search/releases?q=artist+album
   app.get('/releases', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const { q } = req.query
-    if (!q) return reply.code(400).send({ error: 'q is required' })
-    const results = await searchReleases(q)
-    return annotateWithLibraryStatus(results)
+    const { title, artist, offset = 0 } = req.query
+    if (!title && !artist) return reply.code(400).send({ error: 'at least one of title, artist is required' })
+    const { results, total } = await searchReleases({ title, artist, offset: parseInt(offset) })
+    const annotated = await annotateWithLibraryStatus(results)
+    return { results: annotated, total, offset: parseInt(offset) }
   })
 
-  // GET /search/artists?q=name
   app.get('/artists', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const { q } = req.query
-    if (!q) return reply.code(400).send({ error: 'q is required' })
-    return searchArtists(q)
+    const { name, offset = 0 } = req.query
+    if (!name) return reply.code(400).send({ error: 'name is required' })
+    const { results, total } = await searchArtists({ name, offset: parseInt(offset) })
+    return { results, total, offset: parseInt(offset) }
   })
 
-  // GET /search/all?q=query
   app.get('/all', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const { q } = req.query
-    if (!q) return reply.code(400).send({ error: 'q is required' })
-    const [recordings, releases, artists] = await Promise.all([
-      searchRecordings(q).then((r) => annotateWithLibraryStatus(r)),
-      searchReleases(q).then((r) => annotateWithLibraryStatus(r)),
-      searchArtists(q),
+    const { title, artist, offset = 0 } = req.query
+    if (!title && !artist) return reply.code(400).send({ error: 'at least one of title, artist is required' })
+    const off = parseInt(offset)
+    const [rec, rel, art] = await Promise.all([
+      searchRecordings({ title, artist, offset: off }).then(({ results }) => annotateWithLibraryStatus(results)),
+      searchReleases({ title, artist, offset: off }).then(({ results }) => annotateWithLibraryStatus(results)),
+      searchArtists({ name: title || artist, offset: off }).then(({ results }) => results),
     ])
-    return [
-      ...recordings.map((r) => ({ ...r, resultType: 'recording' })),
-      ...releases.map((r) => ({ ...r, resultType: 'release' })),
-      ...artists,
-    ]
+    return {
+      results: [
+        ...rec.map((r) => ({ ...r, resultType: 'recording' })),
+        ...rel.map((r) => ({ ...r, resultType: 'release' })),
+        ...art,
+      ],
+      total: null,
+      offset: off,
+    }
   })
 
-  // GET /search/artist/:mbid/releases
   app.get('/artist/:mbid/releases', { onRequest: [app.authenticate] }, async (req, reply) => {
     const { mbid } = req.params
-    const results = await browseReleasesByArtist(mbid)
-    return annotateWithLibraryStatus(results)
+    const { offset = 0 } = req.query
+    const { results, total } = await browseReleasesByArtist(mbid, { offset: parseInt(offset) })
+    const annotated = await annotateWithLibraryStatus(results)
+    return { results: annotated, total, offset: parseInt(offset) }
   })
 
-  // GET /search/lookup/:mbid?type=recording|release
   app.get('/lookup/:mbid', { onRequest: [app.authenticate] }, async (req, reply) => {
     const { mbid } = req.params
     const { type = 'recording' } = req.query
-    const result = await lookupByMbid(mbid, type)
-    return result
+    return lookupByMbid(mbid, type)
   })
 }
