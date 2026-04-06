@@ -14,9 +14,15 @@ import { triggerGonicScan } from '../services/gonic.js'
 
 const POLL_INTERVAL_MS = 15000
 
+let workerRunning = false
+
 export function startDownloadWorker(app) {
   app.log.info('Download worker started')
-  setInterval(() => runWorker(app).catch((e) => app.log.error(e)), POLL_INTERVAL_MS)
+  setInterval(() => {
+    if (workerRunning) return
+    workerRunning = true
+    runWorker(app).catch((e) => app.log.error(e)).finally(() => { workerRunning = false })
+  }, POLL_INTERVAL_MS)
 }
 
 async function runWorker(app) {
