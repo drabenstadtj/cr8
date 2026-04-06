@@ -22,7 +22,7 @@ function q(val) {
 }
 
 function buildReleaseQuery({ title, artist }) {
-  const parts = ['status:Official']
+  const parts = ['(status:Official OR (NOT status:[* TO *]))']
   if (title) parts.push(`release:${q(title)}`)
   if (artist) parts.push(`artist:${q(artist)}`)
   return parts.join(' AND ')
