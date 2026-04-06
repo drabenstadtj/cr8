@@ -64,6 +64,25 @@ services:
       - reverse-proxy-network
       - homepage-network
       - music-network
+  feishin:
+    container_name: feishin
+    image: ghcr.io/jeffvli/feishin:latest
+    restart: unless-stopped
+    environment:
+      - SERVER_NAME=Wintermute
+      - SERVER_TYPE=subsonic
+      - SERVER_URL=${GONIC_PUBLIC_URL:-}
+      - SERVER_LOCK=true
+      - LEGACY_AUTHENTICATION=true
+      - ANALYTICS_DISABLED=true
+    ports:
+      - 9180:9180
+    depends_on:
+      - gonic
+    networks:
+      - reverse-proxy-network
+      - homepage-network
+      - music-network
   betanin:
     image: sentriz/betanin
     container_name: betanin
