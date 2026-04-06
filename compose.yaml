@@ -44,7 +44,7 @@ services:
 
   # Music - Streaming
   gonic:
-    image: sentriz/gonic:latest
+    image: ghcr.io/drabenstadtj/gonic:latest
     container_name: gonic
     restart: unless-stopped
     ports:
