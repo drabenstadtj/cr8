@@ -57,6 +57,14 @@ export async function deleteGonicUser(username) {
   }
 }
 
+export async function triggerGonicScan() {
+  const base = process.env.GONIC_URL
+  if (!base) return
+
+  const url = `${base}/rest/startScan.view?${subsonicParams()}`
+  await fetch(url).catch(() => {}) // fire and forget
+}
+
 export async function findGonicUrl() {
   const base = process.env.GONIC_URL
   if (!base) return null

@@ -10,6 +10,7 @@ import {
   cleanupDownload,
 } from '../services/slskd.js'
 import { triggerBetaninImport } from '../services/betanin.js'
+import { triggerGonicScan } from '../services/gonic.js'
 
 const POLL_INTERVAL_MS = 15000
 
@@ -145,6 +146,7 @@ async function pollDownloads(prisma, requests, log) {
         await triggerBetaninImport(dirName).catch(
           (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
         )
+        triggerGonicScan()
         for (const f of dirFiles) {
           await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
         }
@@ -174,6 +176,7 @@ async function pollDownloads(prisma, requests, log) {
         await triggerBetaninImport(trackDirName).catch(
           (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
         )
+        triggerGonicScan()
         await cleanupDownload(request.slskdUsername, match.id)
       } else if (match.state === 'Completed, Rejected') {
         log.warn({ id: request.id, user: request.slskdUsername }, 'Track rejected by peer — retrying with new search')
