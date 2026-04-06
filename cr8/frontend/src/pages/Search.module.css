@@ -101,6 +101,15 @@
     font-weight: 600;
 }
 
+.resultTitle a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.resultTitle a:hover {
+    text-decoration: underline;
+}
+
 .resultMeta {
     color: var(--muted);
     font-size: 0.85rem;

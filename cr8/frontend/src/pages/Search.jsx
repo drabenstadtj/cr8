@@ -145,7 +145,15 @@ export default function Search() {
                 }
                 <div className={styles.resultInfo}>
                   <span className={styles.resultTypeLabel}>{label}</span>
-                  <div className={styles.resultTitle}>{isArtist ? r.name : r.title}</div>
+                  <div className={styles.resultTitle}>
+                    <a
+                      href={`https://musicbrainz.org/${r.resultType === 'recording' ? 'recording' : r.resultType === 'artist' ? 'artist' : 'release'}/${r.mbid}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {isArtist ? r.name : r.title}
+                    </a>
+                  </div>
                   <div className={styles.resultMeta}>
                     <span className={styles.resultType}>{label}</span>
                     {isArtist ? r.artistType : r.artist}

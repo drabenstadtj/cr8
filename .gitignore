@@ -11,8 +11,9 @@ node_modules/
 *.db-journal
 *.db-wal
 
-# slskd runtime data
+# slskd
 slskd/
+slskd.yml
 *.db-shm
 
 # Prisma generated client
