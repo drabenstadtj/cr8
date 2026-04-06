@@ -7,7 +7,7 @@ export async function triggerBetaninImport(name) {
 
   const body = new URLSearchParams({ path: downloadDir, name })
 
-  const res = await fetch(`${url}/api/v1/torrents`, {
+  const res = await fetch(`${url}/api/torrents`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
