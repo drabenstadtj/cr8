@@ -10,6 +10,7 @@ import requestRoutes from './routes/requests.js'
 import adminRoutes from './routes/admin.js'
 import explorationRoutes from './routes/exploration.js'
 import { startDownloadWorker } from './workers/downloader.js'
+import { startExplorationWorker } from './workers/exploration.js'
 
 const isDev = process.env.NODE_ENV !== 'production'
 const prisma = new PrismaClient()
@@ -87,6 +88,7 @@ const port = parseInt(process.env.PORT || '3000')
 await app.listen({ port, host: '0.0.0.0' })
 
 startDownloadWorker(app)
+startExplorationWorker(app)
 
 // Connectivity checks
 async function checkSlskd() {

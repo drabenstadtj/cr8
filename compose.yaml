@@ -21,7 +21,7 @@ services:
       DOWNLOAD_DIR: /downloads
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      EXPLO_API_KEY: ${EXPLO_API_KEY:-}
+      LB_PLAYLIST: ${LB_PLAYLIST:-weekly-exploration}
       NODE_ENV: production
     volumes:
       - db_data:/data
@@ -79,7 +79,6 @@ services:
       - ${CONFIG_PATH}/beets:/b/.config/beets/
       - ${MUSIC_PATH}:/music
       - ./downloads:/downloads
-      - ${MUSIC_PATH}/explo:/explo
       - ${CONFIG_PATH}/beets:/config
     networks:
       - homepage-network
@@ -98,36 +97,9 @@ services:
       - SLSKD_SLSK_DIAGNOSTIC_LEVEL=Info
     volumes:
       - ${CONFIG_PATH}/slskd:/app/config
-      - ./slskd/data:/app/data
+      - ${CONFIG_PATH}/slskd/data:/app/data
       - ./downloads:/app/downloads
       - ${CONFIG_PATH}/slskd/slskd.yml:/app/slskd.yml
-      - ./slskd-betanin.sh:/slskd-betanin.sh:ro
-    networks:
-      - music-network
-      - homepage-network
-  explo:
-    build: ./Explo
-    restart: unless-stopped
-    container_name: explo
-    volumes:
-      - ${CONFIG_PATH}/explo/.env:/opt/explo/.env
-      - ${MUSIC_PATH}/explo:/data/
-      - ./downloads:/slskd/
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-      - SLSKD_ALBUM_MODE=true
-      - WEEKLY_EXPLORATION_SCHEDULE=50 10 * * 2
-      - WEEKLY_JAMS_SCHEDULE=0 8 * * 1
-      - DAILY_JAMS_SCHEDULE=0 8 * * *
-      - WEEKLY_EXPLORATION_FLAGS=
-      - WEEKLY_JAMS_FLAGS=--playlist=weekly-jams --download-mode=skip
-      - DAILY_JAMS_FLAGS=--playlist=daily-jams --download-mode=skip
-      - EXECUTE_ON_START=false
-      - START_FLAGS=--persist=false --download-mode=force
-      - CR8_URL=http://cr8-backend:3000
-      - CR8_API_KEY=${EXPLO_API_KEY}
     networks:
       - music-network
       - homepage-network
