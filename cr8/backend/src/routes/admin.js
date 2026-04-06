@@ -85,6 +85,12 @@ export default async function adminRoutes(app) {
     return reply.code(204).send()
   })
 
+  // DELETE /admin/requests — clear all requests
+  app.delete('/requests', { onRequest: [app.requireAdmin] }, async (req, reply) => {
+    await req.prisma.request.deleteMany({})
+    return reply.code(204).send()
+  })
+
   // POST /admin/exploration/run — force a ListenBrainz exploration run
   app.post('/exploration/run', { onRequest: [app.requireAdmin] }, async (req, reply) => {
     triggerExploration(app).catch((e) => app.log.error({ err: e.message }, 'Manual exploration failed'))

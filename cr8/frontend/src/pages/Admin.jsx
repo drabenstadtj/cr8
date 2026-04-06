@@ -82,6 +82,15 @@ export default function Admin() {
     }
   }
 
+  async function clearRequests() {
+    try {
+      await api.delete('/admin/requests')
+      setRequests([])
+    } catch {
+      setError('Failed to clear requests')
+    }
+  }
+
   async function runExploration() {
     try {
       await api.post('/admin/exploration/run', {})
@@ -109,6 +118,7 @@ export default function Admin() {
           <div className={styles.sectionHeader}>
             <h3>Actions</h3>
             <button onClick={runExploration}>Run exploration</button>
+            <button className={styles.dimButton} onClick={() => ask('Clear all requests?', clearRequests)}>Clear requests</button>
           </div>
           {explorationMsg && <p className={styles.empty}>{explorationMsg}</p>}
         </section>
