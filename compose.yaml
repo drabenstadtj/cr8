@@ -41,7 +41,6 @@ services:
     networks:
       - music-network
       - reverse-proxy-network
-
   # Music - Streaming
   gonic:
     image: ghcr.io/drabenstadtj/gonic:latest
@@ -123,7 +122,7 @@ services:
       - music-network
       - homepage-network
 volumes:
-  db_data:
+  db_data: null
 networks:
   reverse-proxy-network:
     external: true
