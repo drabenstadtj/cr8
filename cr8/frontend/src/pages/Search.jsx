@@ -132,8 +132,9 @@ export default function Search() {
 
   function typeLabel(r) {
     if (r.resultType === 'recording' || type === 'recordings') return 'Track'
-    if (r.resultType === 'release' || type === 'releases') return 'Album'
     if (r.resultType === 'artist' || type === 'artists') return 'Artist'
+    if (r.releaseType) return r.releaseType
+    if (r.resultType === 'release' || type === 'releases') return 'Album'
     return ''
   }
 

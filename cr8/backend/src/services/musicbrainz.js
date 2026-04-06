@@ -91,7 +91,7 @@ export async function searchArtists({ name, offset = 0 }) {
 }
 
 export async function browseReleasesByArtist(artistMbid, { offset = 0 } = {}) {
-  const url = `${BASE}/release?artist=${artistMbid}&limit=${PAGE_SIZE}&offset=${offset}&inc=artist-credits&fmt=json`
+  const url = `${BASE}/release?artist=${artistMbid}&limit=${PAGE_SIZE}&offset=${offset}&inc=artist-credits+release-groups&fmt=json`
   const data = await mbFetch(url)
   return {
     total: data['release-count'] ?? 0,
@@ -102,6 +102,7 @@ export async function browseReleasesByArtist(artistMbid, { offset = 0 } = {}) {
       artistMbid: artistMbid,
       date: r.date,
       trackCount: r['track-count'],
+      releaseType: r['release-group']?.['primary-type'] ?? 'Release',
       coverArt: `https://coverartarchive.org/release/${r.id}/front-250`,
     })),
   }
