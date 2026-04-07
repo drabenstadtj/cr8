@@ -269,6 +269,13 @@ export async function getDownloads() {
   return slskdFetch('/api/v0/transfers/downloads')
 }
 
+export async function requeueFiles(username, files) {
+  await slskdFetch(`/api/v0/transfers/downloads/${username}`, {
+    method: 'POST',
+    body: JSON.stringify(files.map((f) => ({ filename: f.filename, size: f.size }))),
+  })
+}
+
 export async function deleteSearch(searchId) {
   await slskdFetch(`/api/v0/searches/${searchId}`, { method: 'DELETE' })
 }

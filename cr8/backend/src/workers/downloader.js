@@ -8,11 +8,13 @@ import {
   getDownloads,
   deleteSearch,
   cleanupDownload,
+  requeueFiles,
 } from '../services/slskd.js'
 import { triggerBetaninImport } from '../services/betanin.js'
 import { triggerGonicScan } from '../services/gonic.js'
 
 const POLL_INTERVAL_MS = 15000
+const MAX_TRACK_RETRIES = 3
 
 let workerRunning = false
 
@@ -157,15 +159,37 @@ async function pollDownloads(prisma, requests, log) {
           await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
         }
       } else if (anyFailed) {
-        const allRejected = dirFiles
-          .filter((f) => f.state?.startsWith('Completed,'))
-          .every((f) => f.state === 'Completed, Rejected')
-        if (allRejected) {
-          log.warn({ id: request.id, user: request.slskdUsername }, 'Album rejected by peer — retrying with new search')
-          await prisma.request.update({ where: { id: request.id }, data: { status: 'APPROVED', slskdUsername: null, slskdFilename: null } })
+        const completedFiles = dirFiles.filter((f) => f.state?.startsWith('Completed,'))
+        const allRejected = completedFiles.every((f) => f.state === 'Completed, Rejected')
+        const failedFiles = completedFiles.filter((f) => f.state !== 'Completed, Succeeded')
+
+        if (allRejected || request.downloadRetries >= MAX_TRACK_RETRIES) {
+          // Give up on this peer — clean up all files and try a fresh search
+          const reason = allRejected ? 'Album rejected by peer' : 'Max track retries reached'
+          log.warn({ id: request.id, user: request.slskdUsername, retries: request.downloadRetries }, `${reason} — retrying with new search`)
+          for (const f of dirFiles) {
+            await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
+          }
+          await prisma.request.update({
+            where: { id: request.id },
+            data: { status: 'APPROVED', slskdUsername: null, slskdFilename: null, downloadRetries: 0 },
+          })
         } else {
-          log.warn({ id: request.id }, 'Album download has failed tracks')
-          await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
+          // Retry just the failed tracks from the same peer
+          log.warn(
+            { id: request.id, failed: failedFiles.length, retry: request.downloadRetries + 1 },
+            'Retrying failed tracks'
+          )
+          for (const f of failedFiles) {
+            await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
+          }
+          await requeueFiles(request.slskdUsername, failedFiles).catch((e) => {
+            log.warn({ id: request.id, err: e.message }, 'Failed to requeue tracks — will retry next poll')
+          })
+          await prisma.request.update({
+            where: { id: request.id },
+            data: { downloadRetries: request.downloadRetries + 1 },
+          })
         }
       }
     } else {
@@ -184,12 +208,18 @@ async function pollDownloads(prisma, requests, log) {
         )
         triggerGonicScan()
         await cleanupDownload(request.slskdUsername, match.id)
-      } else if (match.state === 'Completed, Rejected') {
-        log.warn({ id: request.id, user: request.slskdUsername }, 'Track rejected by peer — retrying with new search')
-        await prisma.request.update({ where: { id: request.id }, data: { status: 'APPROVED', slskdUsername: null, slskdFilename: null } })
+      } else if (match.state === 'Completed, Rejected' || request.downloadRetries >= MAX_TRACK_RETRIES) {
+        const reason = match.state === 'Completed, Rejected' ? 'Track rejected by peer' : 'Max track retries reached'
+        log.warn({ id: request.id, user: request.slskdUsername, retries: request.downloadRetries }, `${reason} — retrying with new search`)
+        await cleanupDownload(request.slskdUsername, match.id).catch(() => {})
+        await prisma.request.update({ where: { id: request.id }, data: { status: 'APPROVED', slskdUsername: null, slskdFilename: null, downloadRetries: 0 } })
       } else if (match.state?.startsWith('Completed,')) {
-        log.warn({ id: request.id, state: match.state }, 'Download failed')
-        await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
+        log.warn({ id: request.id, state: match.state, retry: request.downloadRetries + 1 }, 'Track download failed — retrying')
+        await cleanupDownload(request.slskdUsername, match.id).catch(() => {})
+        await requeueFiles(request.slskdUsername, [match]).catch((e) => {
+          log.warn({ id: request.id, err: e.message }, 'Failed to requeue track — will retry next poll')
+        })
+        await prisma.request.update({ where: { id: request.id }, data: { downloadRetries: request.downloadRetries + 1 } })
       }
     }
   }

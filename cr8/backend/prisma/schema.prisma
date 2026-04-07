@@ -36,9 +36,10 @@ model Request {
   type           String   @default("TRACK")     // TRACK | ALBUM
   status         String   @default("PENDING")   // PENDING | APPROVED | REJECTED | SEARCHING | DOWNLOADING | COMPLETE | FAILED
   rejectedReason String?
-  slskdSearchId  String?
-  slskdUsername  String?
-  slskdFilename  String?
+  slskdSearchId   String?
+  slskdUsername   String?
+  slskdFilename   String?
+  downloadRetries Int     @default(0)
   coverArt       String?
   user           User     @relation(fields: [userId], references: [id])
   userId         String
