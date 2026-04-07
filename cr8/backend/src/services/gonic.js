@@ -65,6 +65,40 @@ export async function triggerGonicScan() {
   await fetch(url).catch(() => {}) // fire and forget
 }
 
+export async function getLastFmStatus(username) {
+  const base = process.env.GONIC_URL
+  if (!base) return { linked: false, apiKey: null }
+  const url = `${base}/rest/getLastFmStatus.view?${subsonicParams({ username })}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Gonic getLastFmStatus HTTP ${res.status}`)
+  const data = await res.json()
+  const r = data?.['subsonic-response']
+  if (r?.status !== 'ok') throw new Error(r?.error?.message || 'getLastFmStatus failed')
+  return { linked: r.lastFmStatus?.linked ?? false, apiKey: r.lastFmStatus?.apiKey ?? null }
+}
+
+export async function linkLastFm(username, token) {
+  const base = process.env.GONIC_URL
+  if (!base) throw new Error('Gonic not configured')
+  const url = `${base}/rest/linkLastFm.view?${subsonicParams({ username, token })}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Gonic linkLastFm HTTP ${res.status}`)
+  const data = await res.json()
+  const r = data?.['subsonic-response']
+  if (r?.status !== 'ok') throw new Error(r?.error?.message || 'linkLastFm failed')
+}
+
+export async function unlinkLastFm(username) {
+  const base = process.env.GONIC_URL
+  if (!base) throw new Error('Gonic not configured')
+  const url = `${base}/rest/unlinkLastFm.view?${subsonicParams({ username })}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Gonic unlinkLastFm HTTP ${res.status}`)
+  const data = await res.json()
+  const r = data?.['subsonic-response']
+  if (r?.status !== 'ok') throw new Error(r?.error?.message || 'unlinkLastFm failed')
+}
+
 export async function findGonicUrl() {
   const base = process.env.GONIC_URL
   if (!base) return null

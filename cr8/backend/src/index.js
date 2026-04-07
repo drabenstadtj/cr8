@@ -9,6 +9,7 @@ import searchRoutes from './routes/search.js'
 import requestRoutes from './routes/requests.js'
 import adminRoutes from './routes/admin.js'
 import explorationRoutes from './routes/exploration.js'
+import lastfmRoutes from './routes/lastfm.js'
 import { startDownloadWorker } from './workers/downloader.js'
 import { startExplorationWorker } from './workers/exploration.js'
 
@@ -80,6 +81,7 @@ await app.register(searchRoutes, { prefix: '/api/search' })
 await app.register(requestRoutes, { prefix: '/api/requests' })
 await app.register(adminRoutes, { prefix: '/api/admin' })
 await app.register(explorationRoutes, { prefix: '/api/exploration' })
+await app.register(lastfmRoutes, { prefix: '/api/lastfm' })
 
 app.get('/api/health', async () => ({ ok: true }))
 app.get('/api/config', { onRequest: [app.authenticate] }, async () => ({ gonicUrl: process.env.GONIC_PUBLIC_URL || process.env.GONIC_URL || null }))

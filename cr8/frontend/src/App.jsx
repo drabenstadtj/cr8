@@ -8,6 +8,7 @@ import Search from './pages/Search.jsx'
 import Requests from './pages/Requests.jsx'
 import Admin from './pages/Admin.jsx'
 import Profile from './pages/Profile.jsx'
+import LastFmCallback from './pages/LastFmCallback.jsx'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="/requests" element={<RequireAuth><Requests /></RequireAuth>} />
         <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
         <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+        <Route path="/lastfm/callback" element={<RequireAuth><LastFmCallback /></RequireAuth>} />
       </Routes>
     </AuthContext.Provider>
     </ConfigContext.Provider>
