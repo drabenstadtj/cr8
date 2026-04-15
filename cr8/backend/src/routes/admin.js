@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { deleteGonicUser } from '../services/gonic.js'
+import { deleteGonicUser, addAlbumToWeeklyPlaylist, triggerGonicScan } from '../services/gonic.js'
 import { triggerExploration } from '../workers/exploration.js'
 
 export default async function adminRoutes(app) {
@@ -95,6 +95,22 @@ export default async function adminRoutes(app) {
   app.post('/exploration/run', { onRequest: [app.requireAdmin] }, async (req, reply) => {
     triggerExploration(app).catch((e) => app.log.error({ err: e.message }, 'Manual exploration failed'))
     return reply.code(202).send({ ok: true })
+  })
+
+  // POST /admin/playlist/rebuild — add all COMPLETE requests to this week's gonic playlist
+  app.post('/playlist/rebuild', { onRequest: [app.requireAdmin] }, async (req, reply) => {
+    const completed = await req.prisma.request.findMany({
+      where: { status: 'COMPLETE', type: 'ALBUM' },
+      select: { artist: true, album: true, title: true },
+    })
+    reply.code(202).send({ ok: true, albums: completed.length })
+    await triggerGonicScan()
+    for (const r of completed) {
+      await addAlbumToWeeklyPlaylist(r.artist, r.album || r.title).catch(
+        (e) => app.log.warn({ artist: r.artist, album: r.album, err: e.message }, 'Playlist rebuild failed for album')
+      )
+    }
+    app.log.info({ count: completed.length }, 'Playlist rebuild complete')
   })
 
   // GET /admin/users

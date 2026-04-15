@@ -20,6 +20,7 @@ export default function Admin() {
   const [error, setError] = useState('')
   const [confirm, setConfirm] = useState(null)
   const [explorationMsg, setExplorationMsg] = useState('')
+  const [playlistMsg, setPlaylistMsg] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -100,6 +101,15 @@ export default function Admin() {
     }
   }
 
+  async function rebuildPlaylist() {
+    try {
+      const res = await api.post('/admin/playlist/rebuild', {})
+      setPlaylistMsg(`Rebuilding playlist for ${res.albums} albums — this may take a few minutes.`)
+    } catch {
+      setPlaylistMsg('Failed to trigger playlist rebuild.')
+    }
+  }
+
   function copyInviteLink(token) {
     navigator.clipboard.writeText(`${window.location.origin}/register?token=${token}`)
   }
@@ -118,9 +128,11 @@ export default function Admin() {
           <div className={styles.sectionHeader}>
             <h3>Actions</h3>
             <button onClick={runExploration}>Run exploration</button>
+            <button onClick={rebuildPlaylist}>Rebuild playlist</button>
             <button className={styles.dimButton} onClick={() => ask('Clear all requests?', clearRequests)}>Clear requests</button>
           </div>
           {explorationMsg && <p className={styles.empty}>{explorationMsg}</p>}
+          {playlistMsg && <p className={styles.empty}>{playlistMsg}</p>}
         </section>
 
         <section className={styles.section}>

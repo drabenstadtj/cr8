@@ -155,7 +155,9 @@ async function pollDownloads(prisma, requests, log) {
           (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
         )
         triggerGonicScan()
-        addAlbumToWeeklyPlaylist(request.artist, request.album || request.title).catch(() => {})
+        addAlbumToWeeklyPlaylist(request.artist, request.album || request.title).catch(
+          (e) => log.warn({ id: request.id, err: e.message }, 'Weekly playlist update failed')
+        )
         for (const f of dirFiles) {
           await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
         }

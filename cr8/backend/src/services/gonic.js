@@ -127,6 +127,11 @@ async function getOrCreateWeeklyPlaylist(name) {
   const created = await createRes.json()
   const id = created?.['subsonic-response']?.playlist?.id
   if (!id) throw new Error('createPlaylist returned no id')
+
+  // Mark public so all users can see it in their Subsonic clients
+  const pubParams = new URLSearchParams(subsonicParams({ playlistId: id, public: 'true' }))
+  await fetch(`${base}/rest/updatePlaylist?${pubParams.toString()}`, { method: 'POST' }).catch(() => {})
+
   return id
 }
 
@@ -134,10 +139,13 @@ export async function addAlbumToWeeklyPlaylist(artist, album) {
   const base = process.env.GONIC_URL
   if (!base) return
 
-  // Retry up to 5 times with 30s delay while gonic scan is in progress
+  // Retry up to 8 times with 30s delay — beets import + gonic scan can take a few minutes
   let songIds = []
-  for (let i = 0; i < 5; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 30000))
+  for (let i = 0; i < 8; i++) {
+    if (i > 0) {
+      await new Promise((r) => setTimeout(r, 30000))
+      await triggerGonicScan() // re-scan before each retry in case beets just finished
+    }
     songIds = await searchAlbumSongIds(artist, album).catch(() => [])
     if (songIds.length) break
   }
