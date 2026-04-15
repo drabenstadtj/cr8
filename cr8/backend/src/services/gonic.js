@@ -99,6 +99,43 @@ export async function unlinkLastFm(username) {
   if (r?.status !== 'ok') throw new Error(r?.error?.message || 'unlinkLastFm failed')
 }
 
+async function searchSongId(title, artist) {
+  const base = process.env.GONIC_URL
+  const res = await fetch(
+    `${base}/rest/search3?${subsonicParams({ query: title, songCount: 20, albumCount: 0 })}`
+  )
+  if (!res.ok) return null
+  const data = await res.json()
+  const songs = data?.['subsonic-response']?.searchResult3?.song || []
+  const match = songs.find((s) => looseMatch(s.title, title) && looseMatch(s.artist, artist))
+  return match?.id ?? null
+}
+
+// Add specific LB tracks (not whole album) to the weekly playlist.
+// lbTracks: [{title, artist}]
+export async function addTracksToWeeklyPlaylist(lbTracks, { maxRetries = 8 } = {}) {
+  const base = process.env.GONIC_URL
+  if (!base) return
+
+  let songIds = []
+  for (let i = 0; i < maxRetries; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 30000))
+    const results = await Promise.all(
+      lbTracks.map((t) => searchSongId(t.title, t.artist).catch(() => null))
+    )
+    songIds = results.filter(Boolean)
+    console.log(`[playlist] attempt ${i + 1}: found ${songIds.length}/${lbTracks.length} LB tracks in gonic`)
+    if (songIds.length) break
+  }
+  if (!songIds.length) return
+
+  const playlistId = await getOrCreateWeeklyPlaylist(`Weekly Exploration ${isoWeekLabel()}`)
+  const params = new URLSearchParams(subsonicParams({ playlistId, public: 'true' }))
+  for (const id of songIds) params.append('songIdToAdd', id)
+  const res = await fetch(`${base}/rest/updatePlaylist?${params.toString()}`, { method: 'POST' })
+  console.log(`[playlist] addTracksToWeeklyPlaylist updatePlaylist status: ${res.status}`)
+}
+
 async function searchAlbumSongIds(artist, album) {
   const base = process.env.GONIC_URL
 

@@ -45,20 +45,18 @@ async function runForUser(prisma, user, log) {
   const tracks = await getWeeklyTracks(user.listenbrainzUsername, PLAYLIST_TYPE)
   log.info({ lbUser: user.listenbrainzUsername, tracks: tracks.length }, 'Got LB tracks')
 
-  // One request per album — deduplicate by artist+album
-  const seen = new Set()
-  const albums = []
+  // One request per album — deduplicate by artist+album, collect all LB tracks per album
+  const albumMap = new Map()
   for (const track of tracks) {
     if (!track.album || !track.mainArtist) continue
     const key = `${track.mainArtist.toLowerCase()}|${track.album.toLowerCase()}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    albums.push(track)
+    if (!albumMap.has(key)) albumMap.set(key, { representative: track, lbTracks: [] })
+    albumMap.get(key).lbTracks.push({ title: track.title, artist: track.mainArtist })
   }
 
-  log.info({ lbUser: user.listenbrainzUsername, albums: albums.length }, 'Unique albums to consider')
+  log.info({ lbUser: user.listenbrainzUsername, albums: albumMap.size }, 'Unique albums to consider')
 
-  for (const track of albums) {
+  for (const { representative: track, lbTracks } of albumMap.values()) {
     const mbid = track.releaseMbid || track.mbid
     if (!mbid) {
       log.warn({ title: track.title, artist: track.mainArtist }, 'No MBID, skipping')
@@ -84,6 +82,7 @@ async function runForUser(prisma, user, log) {
         type: 'ALBUM',
         status: 'APPROVED',
         coverArt,
+        lbTrackTitles: JSON.stringify(lbTracks),
         userId: user.id,
       },
     })

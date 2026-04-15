@@ -1,6 +1,7 @@
 import crypto from 'crypto'
-import { deleteGonicUser, addAlbumToWeeklyPlaylist, triggerGonicScan } from '../services/gonic.js'
+import { deleteGonicUser, addTracksToWeeklyPlaylist, triggerGonicScan } from '../services/gonic.js'
 import { triggerExploration } from '../workers/exploration.js'
+import { getWeeklyTracks } from '../services/listenbrainz.js'
 
 export default async function adminRoutes(app) {
   // GET /admin/requests — all requests
@@ -97,22 +98,27 @@ export default async function adminRoutes(app) {
     return reply.code(202).send({ ok: true })
   })
 
-  // POST /admin/playlist/rebuild — add all COMPLETE requests to this week's gonic playlist
+  // POST /admin/playlist/rebuild — rebuild this week's gonic playlist from LB recommendations
   app.post('/playlist/rebuild', { onRequest: [app.requireAdmin] }, async (req, reply) => {
-    const completed = await req.prisma.request.findMany({
-      where: { status: 'COMPLETE', type: 'ALBUM' },
-      select: { artist: true, album: true, title: true },
+    const users = await req.prisma.user.findMany({
+      where: { listenbrainzUsername: { not: null } },
+      select: { listenbrainzUsername: true },
     })
-    reply.code(202).send({ ok: true, albums: completed.length })
-    // One scan up front — all these albums are already in /music
+    reply.code(202).send({ ok: true, users: users.length })
     await triggerGonicScan()
-    await new Promise((r) => setTimeout(r, 5000)) // brief wait for scan to finish
-    for (const r of completed) {
-      await addAlbumToWeeklyPlaylist(r.artist, r.album || r.title, { maxRetries: 1 }).catch(
-        (e) => app.log.warn({ artist: r.artist, album: r.album, err: e.message }, 'Playlist rebuild failed for album')
+    await new Promise((r) => setTimeout(r, 5000))
+    for (const u of users) {
+      const tracks = await getWeeklyTracks(u.listenbrainzUsername).catch((e) => {
+        app.log.warn({ lbUser: u.listenbrainzUsername, err: e.message }, 'Playlist rebuild: LB fetch failed')
+        return []
+      })
+      if (!tracks.length) continue
+      const lbTracks = tracks.map((t) => ({ title: t.title, artist: t.mainArtist }))
+      await addTracksToWeeklyPlaylist(lbTracks, { maxRetries: 1 }).catch(
+        (e) => app.log.warn({ lbUser: u.listenbrainzUsername, err: e.message }, 'Playlist rebuild failed')
       )
+      app.log.info({ lbUser: u.listenbrainzUsername, tracks: lbTracks.length }, 'Playlist rebuild complete')
     }
-    app.log.info({ count: completed.length }, 'Playlist rebuild complete')
   })
 
   // GET /admin/users
