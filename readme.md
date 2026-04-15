@@ -1,4 +1,4 @@
 # todo
 
 - exploration playlist creation
-- lastfm auth flow
+- in-library function for search

@@ -11,7 +11,7 @@ import {
   requeueFiles,
 } from '../services/slskd.js'
 import { triggerBetaninImport } from '../services/betanin.js'
-import { triggerGonicScan } from '../services/gonic.js'
+import { triggerGonicScan, addAlbumToWeeklyPlaylist } from '../services/gonic.js'
 
 const POLL_INTERVAL_MS = 15000
 const MAX_TRACK_RETRIES = 3
@@ -155,6 +155,7 @@ async function pollDownloads(prisma, requests, log) {
           (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
         )
         triggerGonicScan()
+        addAlbumToWeeklyPlaylist(request.artist, request.album || request.title).catch(() => {})
         for (const f of dirFiles) {
           await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
         }

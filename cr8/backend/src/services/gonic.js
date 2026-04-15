@@ -99,10 +99,80 @@ export async function unlinkLastFm(username) {
   if (r?.status !== 'ok') throw new Error(r?.error?.message || 'unlinkLastFm failed')
 }
 
+async function searchAlbumSongIds(artist, album) {
+  const base = process.env.GONIC_URL
+  const url = `${base}/rest/search3?${subsonicParams({ query: `${artist} ${album}`, songCount: 50, albumCount: 0 })}`
+  const res = await fetch(url)
+  if (!res.ok) return []
+  const data = await res.json()
+  const songs = data?.['subsonic-response']?.searchResult3?.song || []
+  return songs
+    .filter((s) => looseMatch(s.album, album) && looseMatch(s.artist, artist))
+    .map((s) => s.id)
+}
+
+async function getOrCreateWeeklyPlaylist(name) {
+  const base = process.env.GONIC_URL
+
+  const listRes = await fetch(`${base}/rest/getPlaylists?${subsonicParams()}`)
+  if (listRes.ok) {
+    const data = await listRes.json()
+    const playlists = data?.['subsonic-response']?.playlists?.playlist || []
+    const existing = playlists.find((p) => p.name === name)
+    if (existing) return existing.id
+  }
+
+  const createRes = await fetch(`${base}/rest/createPlaylist?${subsonicParams({ name })}`, { method: 'POST' })
+  if (!createRes.ok) throw new Error(`createPlaylist HTTP ${createRes.status}`)
+  const created = await createRes.json()
+  const id = created?.['subsonic-response']?.playlist?.id
+  if (!id) throw new Error('createPlaylist returned no id')
+  return id
+}
+
+export async function addAlbumToWeeklyPlaylist(artist, album) {
+  const base = process.env.GONIC_URL
+  if (!base) return
+
+  // Retry up to 5 times with 30s delay while gonic scan is in progress
+  let songIds = []
+  for (let i = 0; i < 5; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 30000))
+    songIds = await searchAlbumSongIds(artist, album).catch(() => [])
+    if (songIds.length) break
+  }
+  if (!songIds.length) return
+
+  const playlistId = await getOrCreateWeeklyPlaylist(`Weekly Exploration ${isoWeekLabel()}`)
+
+  const params = new URLSearchParams(subsonicParams({ playlistId }))
+  for (const id of songIds) params.append('songIdToAdd', id)
+  await fetch(`${base}/rest/updatePlaylist?${params.toString()}`, { method: 'POST' })
+}
+
 export async function findGonicUrl() {
   const base = process.env.GONIC_URL
   if (!base) return null
   return process.env.GONIC_PUBLIC_URL || base
+}
+
+function normStr(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function looseMatch(a, b) {
+  const na = normStr(a)
+  const nb = normStr(b)
+  return na === nb || na.includes(nb) || nb.includes(na)
+}
+
+function isoWeekLabel(date = new Date()) {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7))
+  const week1 = new Date(d.getFullYear(), 0, 4)
+  const week = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
+  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`
 }
 
 export async function checkDuplicateInLibrary(title, artist) {
@@ -119,22 +189,13 @@ export async function checkDuplicateInLibrary(title, artist) {
     const r = data?.['subsonic-response']
     if (r?.status !== 'ok') return false
 
-    const lTitle = title.toLowerCase()
-    const lArtist = artist.toLowerCase()
-
-    // Check songs (for track searches)
-    const songs = r.searchResult3?.song || []
-    if (songs.some((s) =>
-      s.title?.toLowerCase() === lTitle &&
-      s.artist?.toLowerCase() === lArtist
-    )) return true
-
-    // Check albums (for album searches — title is the album name)
+    // Check albums (for album requests — title is the album name)
     const albums = r.searchResult3?.album || []
-    if (albums.some((a) =>
-      a.name?.toLowerCase() === lTitle &&
-      a.artist?.toLowerCase() === lArtist
-    )) return true
+    if (albums.some((a) => looseMatch(a.name, title) && looseMatch(a.artist, artist))) return true
+
+    // Check songs (for track requests — title is the track name)
+    const songs = r.searchResult3?.song || []
+    if (songs.some((s) => looseMatch(s.title, title) && looseMatch(s.artist, artist))) return true
 
     return false
   } catch {

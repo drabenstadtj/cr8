@@ -1,38 +1,20 @@
+import cron from 'node-cron'
 import { getWeeklyTracks } from '../services/listenbrainz.js'
 import { checkDuplicateInLibrary } from '../services/gonic.js'
 
 const PLAYLIST_TYPE = process.env.LB_PLAYLIST || 'weekly-exploration'
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000 // check every 6 hours
 
-let lastRunWeek = null
-
-function isoWeekKey(date = new Date()) {
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7))
-  const week1 = new Date(d.getFullYear(), 0, 4)
-  const week = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
-  return `${d.getFullYear()}-W${week}`
-}
 
 export function startExplorationWorker(app) {
-  app.log.info('Exploration worker started')
-  runIfNewWeek(app)
-  setInterval(() => runIfNewWeek(app).catch((e) => app.log.error(e)), CHECK_INTERVAL_MS)
+  app.log.info('Exploration worker started — scheduled for Mondays at 08:30')
+  // Run every Monday at 08:30 (LB generates weekly-exploration playlists ~08:00 Monday)
+  cron.schedule('30 8 * * 1', () => {
+    runExploration(app).catch((e) => app.log.error({ err: e.message }, 'Exploration worker failed'))
+  })
 }
 
 export async function triggerExploration(app) {
-  lastRunWeek = null
-  await runIfNewWeek(app)
-}
-
-async function runIfNewWeek(app) {
-  const week = isoWeekKey()
-  if (week === lastRunWeek) return
-  lastRunWeek = week
-  await runExploration(app).catch((e) =>
-    app.log.error({ err: e.message }, 'Exploration worker failed')
-  )
+  await runExploration(app)
 }
 
 async function runExploration(app) {
