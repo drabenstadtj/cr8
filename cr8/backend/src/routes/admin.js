@@ -92,7 +92,7 @@ export default async function adminRoutes(app) {
   })
 
   // POST /admin/exploration/run — force a ListenBrainz exploration run
-  app.post('/exploration/run', { onRequest: [app.requireAdmin] }, async (req, reply) => {
+  app.post('/exploration/run', { onRequest: [app.requireAdmin] }, async (_req, reply) => {
     triggerExploration(app).catch((e) => app.log.error({ err: e.message }, 'Manual exploration failed'))
     return reply.code(202).send({ ok: true })
   })
@@ -108,7 +108,7 @@ export default async function adminRoutes(app) {
     await triggerGonicScan()
     await new Promise((r) => setTimeout(r, 5000)) // brief wait for scan to finish
     for (const r of completed) {
-      await addAlbumToWeeklyPlaylist(r.artist, r.album || r.title).catch(
+      await addAlbumToWeeklyPlaylist(r.artist, r.album || r.title, { maxRetries: 1 }).catch(
         (e) => app.log.warn({ artist: r.artist, album: r.album, err: e.message }, 'Playlist rebuild failed for album')
       )
     }

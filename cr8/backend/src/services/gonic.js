@@ -150,14 +150,15 @@ async function getOrCreateWeeklyPlaylist(name) {
   return id
 }
 
-export async function addAlbumToWeeklyPlaylist(artist, album) {
+export async function addAlbumToWeeklyPlaylist(artist, album, { maxRetries = 8 } = {}) {
   const base = process.env.GONIC_URL
   if (!base) return
 
-  // Retry up to 8 times with 30s delay — beets import + gonic scan can take a few minutes.
+  // Retry up to maxRetries times with 30s delay — beets import + gonic scan can take a few minutes.
+  // For rebuild (albums already in gonic), pass maxRetries: 1 to skip retrying.
   // Caller is responsible for triggering a gonic scan before calling this.
   let songIds = []
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < maxRetries; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, 30000))
     songIds = await searchAlbumSongIds(artist, album).catch(() => [])
     console.log(`[playlist] ${artist} / ${album}: attempt ${i + 1}, found ${songIds.length} songs`)
