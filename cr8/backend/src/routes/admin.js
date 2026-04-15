@@ -104,7 +104,9 @@ export default async function adminRoutes(app) {
       select: { artist: true, album: true, title: true },
     })
     reply.code(202).send({ ok: true, albums: completed.length })
+    // One scan up front — all these albums are already in /music
     await triggerGonicScan()
+    await new Promise((r) => setTimeout(r, 5000)) // brief wait for scan to finish
     for (const r of completed) {
       await addAlbumToWeeklyPlaylist(r.artist, r.album || r.title).catch(
         (e) => app.log.warn({ artist: r.artist, album: r.album, err: e.message }, 'Playlist rebuild failed for album')

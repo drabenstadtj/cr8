@@ -139,23 +139,28 @@ export async function addAlbumToWeeklyPlaylist(artist, album) {
   const base = process.env.GONIC_URL
   if (!base) return
 
-  // Retry up to 8 times with 30s delay — beets import + gonic scan can take a few minutes
+  // Retry up to 8 times with 30s delay — beets import + gonic scan can take a few minutes.
+  // Caller is responsible for triggering a gonic scan before calling this.
   let songIds = []
   for (let i = 0; i < 8; i++) {
-    if (i > 0) {
-      await new Promise((r) => setTimeout(r, 30000))
-      await triggerGonicScan() // re-scan before each retry in case beets just finished
-    }
+    if (i > 0) await new Promise((r) => setTimeout(r, 30000))
     songIds = await searchAlbumSongIds(artist, album).catch(() => [])
+    console.log(`[playlist] ${artist} / ${album}: attempt ${i + 1}, found ${songIds.length} songs`)
     if (songIds.length) break
   }
-  if (!songIds.length) return
+  if (!songIds.length) {
+    console.log(`[playlist] ${artist} / ${album}: no songs found after retries, skipping`)
+    return
+  }
 
-  const playlistId = await getOrCreateWeeklyPlaylist(`Weekly Exploration ${isoWeekLabel()}`)
+  const playlistName = `Weekly Exploration ${isoWeekLabel()}`
+  const playlistId = await getOrCreateWeeklyPlaylist(playlistName)
+  console.log(`[playlist] ${artist} / ${album}: adding ${songIds.length} songs to playlist ${playlistId}`)
 
-  const params = new URLSearchParams(subsonicParams({ playlistId }))
+  const params = new URLSearchParams(subsonicParams({ playlistId, public: 'true' }))
   for (const id of songIds) params.append('songIdToAdd', id)
-  await fetch(`${base}/rest/updatePlaylist?${params.toString()}`, { method: 'POST' })
+  const res = await fetch(`${base}/rest/updatePlaylist?${params.toString()}`, { method: 'POST' })
+  console.log(`[playlist] updatePlaylist status: ${res.status}`)
 }
 
 export async function findGonicUrl() {
