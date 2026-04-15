@@ -101,14 +101,29 @@ export async function unlinkLastFm(username) {
 
 async function searchAlbumSongIds(artist, album) {
   const base = process.env.GONIC_URL
-  const url = `${base}/rest/search3?${subsonicParams({ query: `${artist} ${album}`, songCount: 50, albumCount: 0 })}`
-  const res = await fetch(url)
-  if (!res.ok) return []
-  const data = await res.json()
-  const songs = data?.['subsonic-response']?.searchResult3?.song || []
-  return songs
-    .filter((s) => looseMatch(s.album, album) && looseMatch(s.artist, artist))
-    .map((s) => s.id)
+
+  // Step 1: search for the album by name
+  const searchRes = await fetch(
+    `${base}/rest/search3?${subsonicParams({ query: album, songCount: 0, albumCount: 20 })}`
+  )
+  if (!searchRes.ok) return []
+  const searchData = await searchRes.json()
+  const albums = searchData?.['subsonic-response']?.searchResult3?.album || []
+  const matched = albums.filter(
+    (a) => looseMatch(a.name, album) && looseMatch(a.artist, artist)
+  )
+  if (!matched.length) return []
+
+  // Step 2: fetch songs for each matched album
+  const songIds = []
+  for (const a of matched) {
+    const albumRes = await fetch(`${base}/rest/getAlbum?${subsonicParams({ id: a.id })}`)
+    if (!albumRes.ok) continue
+    const albumData = await albumRes.json()
+    const songs = albumData?.['subsonic-response']?.album?.song || []
+    for (const s of songs) songIds.push(s.id)
+  }
+  return songIds
 }
 
 async function getOrCreateWeeklyPlaylist(name) {
