@@ -1,4 +1,4 @@
-import { transition } from './request-machine.js'
+import { transition } from './machine.js'
 
 /**
  * Applies a state machine transition to a request:

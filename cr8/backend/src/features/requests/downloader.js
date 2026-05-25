@@ -1,6 +1,6 @@
-import { collectCandidates, collectAlbumCandidates } from '../lib/scoring.js'
-import { applyTransition } from '../lib/apply-transition.js'
-import { EVENT } from '../lib/request-machine.js'
+import { collectCandidates, collectAlbumCandidates } from './scoring.js'
+import { applyTransition } from './apply-transition.js'
+import { EVENT } from './machine.js'
 
 const POLL_INTERVAL_MS = 15000
 const MAX_TRACK_RETRIES = 3
@@ -46,7 +46,6 @@ async function startDownload(prisma, request, app) {
     const responses = await soulseek.pollSearch(searchId)
     await soulseek.cancelSearch(searchId)
 
-    // Reload to get latest status after SEARCH_STARTED update
     const searching = await prisma.request.findUnique({ where: { id: request.id } })
 
     if (isAlbum) {
@@ -120,7 +119,6 @@ async function startDownload(prisma, request, app) {
     }
   } catch (err) {
     log.error({ id: request.id, err }, 'Download failed')
-    // Force status to FAILED without going through the machine (unexpected error path)
     await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
   }
 }

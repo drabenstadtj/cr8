@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { collectCandidates, collectAlbumCandidates } from '../src/lib/scoring.js'
+import { collectCandidates, collectAlbumCandidates } from '../src/features/requests/scoring.js'
 
 // Minimal fake response builder
 function makeResponse({ username = 'peer', hasFreeUploadSlot = true, files = [] } = {}) {

@@ -1,6 +1,6 @@
 import { createApp } from './app.js'
-import { startDownloadWorker } from './workers/downloader.js'
-import { startExplorationWorker } from './workers/exploration.js'
+import { startDownloadWorker } from './features/requests/downloader.js'
+import { startExplorationWorker } from './features/exploration/worker.js'
 
 const app = await createApp()
 
@@ -26,8 +26,7 @@ async function checkGonic() {
   const base = process.env.GONIC_URL
   if (!base) { app.log.info('Gonic not configured, skipping library checks'); return }
   try {
-    const { checkDuplicateInLibrary } = await import('./services/gonic.js')
-    await checkDuplicateInLibrary('ping', 'ping')
+    await app.library.contains('ping', 'ping')
     app.log.info('Gonic connected')
   } catch {
     app.log.warn(`Gonic unreachable at ${base}`)

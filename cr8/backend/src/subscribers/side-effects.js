@@ -1,4 +1,4 @@
-import { EFFECT } from '../lib/request-machine.js'
+import { EFFECT } from '../features/requests/machine.js'
 
 /**
  * Registers side-effect event handlers on the app.

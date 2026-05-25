@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { transition, STATUS, EVENT, EFFECT } from '../src/lib/request-machine.js'
+import { transition, STATUS, EVENT, EFFECT } from '../src/features/requests/machine.js'
 
 describe('transition: PENDING', () => {
   it('APPROVE → APPROVED', () => {

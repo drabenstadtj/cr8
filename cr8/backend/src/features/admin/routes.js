@@ -1,7 +1,7 @@
 import crypto from 'crypto'
-import { triggerExploration } from '../workers/exploration.js'
-import { applyTransition } from '../lib/apply-transition.js'
-import { EVENT } from '../lib/request-machine.js'
+import { triggerExploration } from '../exploration/worker.js'
+import { applyTransition } from '../requests/apply-transition.js'
+import { EVENT } from '../requests/machine.js'
 
 export default async function adminRoutes(app) {
   app.get('/requests', { onRequest: [app.requireAdmin] }, async (req) => {
