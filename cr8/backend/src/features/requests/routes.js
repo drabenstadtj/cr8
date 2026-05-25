@@ -1,7 +1,6 @@
-import { checkDuplicateInLibrary, findGonicUrl } from '../services/gonic.js'
+import { config } from '../../config.js'
 
 export default async function requestRoutes(app) {
-  // GET /requests — current user's requests
   app.get('/', { onRequest: [app.authenticate] }, async (req) => {
     return req.prisma.request.findMany({
       where: { userId: req.user.id },
@@ -9,7 +8,6 @@ export default async function requestRoutes(app) {
     })
   })
 
-  // POST /requests — submit a new request
   app.post('/', { onRequest: [app.authenticate] }, async (req, reply) => {
     const { mbid, title, artist, album, type = 'TRACK', coverArt } = req.body
 
@@ -23,20 +21,14 @@ export default async function requestRoutes(app) {
     if (album && album.length > 500) return reply.code(400).send({ error: 'album too long' })
     if (!['TRACK', 'ALBUM'].includes(type)) return reply.code(400).send({ error: 'type must be TRACK or ALBUM' })
 
-    // Only allow http/https URLs for coverArt, and only from trusted domains
     const safeCoverArt = coverArt && /^https?:\/\/coverartarchive\.org\//.test(coverArt) ? coverArt : null
 
-    // Check for duplicate request by MBID
     const existing = await req.prisma.request.findFirst({ where: { mbid } })
     if (existing) {
-      return reply.code(409).send({
-        error: 'already_requested',
-        request: existing,
-      })
+      return reply.code(409).send({ error: 'already_requested', request: existing })
     }
 
-    // Check if already in Navidrome library
-    const inLibrary = await checkDuplicateInLibrary(title, artist)
+    const inLibrary = await app.library.contains(title, artist)
     if (inLibrary) {
       return reply.code(409).send({ error: 'already_in_library' })
     }
@@ -57,7 +49,6 @@ export default async function requestRoutes(app) {
     return reply.code(201).send(request)
   })
 
-  // GET /requests/activity — recent requests across all users (limited fields)
   app.get('/activity', { onRequest: [app.authenticate] }, async (req) => {
     return req.prisma.request.findMany({
       orderBy: { createdAt: 'desc' },
@@ -66,7 +57,6 @@ export default async function requestRoutes(app) {
     })
   })
 
-  // GET /requests/stats — counts by status
   app.get('/stats', { onRequest: [app.authenticate] }, async (req) => {
     const rows = await req.prisma.request.groupBy({
       by: ['status'],
@@ -75,25 +65,19 @@ export default async function requestRoutes(app) {
     return Object.fromEntries(rows.map((r) => [r.status, r._count.status]))
   })
 
-  // GET /requests/:id/listen — resolve Gonic URL
   app.get('/:id/listen', { onRequest: [app.authenticate] }, async (req, reply) => {
     const request = await req.prisma.request.findUnique({ where: { id: req.params.id } })
     if (!request) return reply.code(404).send({ error: 'Not found' })
-    const url = await findGonicUrl()
+    const url = config.GONIC_PUBLIC_URL ?? config.GONIC_URL ?? null
     return { url }
   })
 
-  // GET /requests/:id
   app.get('/:id', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const request = await req.prisma.request.findUnique({
-      where: { id: req.params.id },
-    })
-
+    const request = await req.prisma.request.findUnique({ where: { id: req.params.id } })
     if (!request) return reply.code(404).send({ error: 'Not found' })
     if (request.userId !== req.user.id && req.user.role !== 'ADMIN') {
       return reply.code(403).send({ error: 'Forbidden' })
     }
-
     return request
   })
 }
