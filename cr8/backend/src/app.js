@@ -12,6 +12,7 @@ import { createRecommenderAdapter } from './adapters/recommender.js'
 import { createLibraryAdapter } from './adapters/library.js'
 import { createImporterAdapter } from './adapters/importer.js'
 import { registerSideEffectSubscribers } from './subscribers/side-effects.js'
+import { startProbes } from './lib/probes.js'
 import authRoutes from './features/auth/routes.js'
 import searchRoutes from './features/search/routes.js'
 import requestRoutes from './features/requests/routes.js'
@@ -101,6 +102,10 @@ export async function createApp({
   await app.register(lastfmRoutes, { prefix: '/api/lastfm' })
 
   registerSideEffectSubscribers(app)
+
+  if (config.NODE_ENV !== 'test') {
+    startProbes(app.log)
+  }
 
   app.get('/api/health', async () => ({ ok: true }))
   app.get('/api/config', { onRequest: [app.authenticate] }, async () => ({

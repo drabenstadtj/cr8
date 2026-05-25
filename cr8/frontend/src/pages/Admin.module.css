@@ -133,3 +133,131 @@ h2 {
 .dialogActions button {
     flex: 1;
 }
+
+.timelineDialog {
+    max-width: 520px;
+}
+
+.timelineTitle {
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+.timelineTitle small {
+    display: block;
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 2px;
+}
+
+.timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.timelineEmpty {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.timelineEvent {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 0;
+    border-bottom: 1px solid #222;
+    font-size: 0.85rem;
+}
+
+.timelineEvent:last-child {
+    border-bottom: none;
+}
+
+.timelineRow {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.timelineArrow {
+    font-family: 'Rubik Mono One', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    flex: 1;
+}
+
+.timelineArrow span {
+    color: var(--muted);
+}
+
+.timelineTime {
+    color: var(--muted);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.timelineReason {
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding-left: 2px;
+}
+
+.statusGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.statusRow {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 0.85rem;
+}
+
+.statusLabel {
+    width: 110px;
+    flex-shrink: 0;
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.statusOk {
+    color: var(--fg);
+}
+
+.statusFail {
+    color: #c07878;
+}
+
+.statusSkipped {
+    color: var(--muted);
+}
+
+.statusLatency {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.stuckItem {
+    font-size: 0.85rem;
+    color: #c07878;
+    padding: 4px 0;
+    border-bottom: 1px solid #222;
+}
+
+.stuckItem:last-child {
+    border-bottom: none;
+}
+
+.workerRow {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
