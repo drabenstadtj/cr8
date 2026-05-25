@@ -1,6 +1,6 @@
 import { collectCandidates, collectAlbumCandidates } from '../lib/scoring.js'
 import { applyTransition } from '../lib/apply-transition.js'
-import { EVENT, EFFECT } from '../lib/request-machine.js'
+import { EVENT } from '../lib/request-machine.js'
 
 const POLL_INTERVAL_MS = 15000
 const MAX_TRACK_RETRIES = 3
@@ -125,24 +125,8 @@ async function startDownload(prisma, request, app) {
   }
 }
 
-async function executeSideEffects(sideEffects, { library, importer, log, requestId }) {
-  for (const effect of sideEffects) {
-    if (effect.type === EFFECT.IMPORT_DOWNLOAD) {
-      await importer.importDownload(effect.payload.dirName).catch(
-        (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
-      )
-    } else if (effect.type === EFFECT.SCAN_LIBRARY) {
-      library.scanLibrary()
-    } else if (effect.type === EFFECT.ADD_TO_PLAYLIST) {
-      library.addTracksToPlaylist(effect.payload.playlistName, effect.payload.lbTracks).catch(
-        (e) => log.warn({ id: requestId, err: e.message }, 'Weekly playlist update failed')
-      )
-    }
-  }
-}
-
 async function pollDownloads(prisma, requests, app) {
-  const { soulseek, library, importer, log } = app
+  const { soulseek, library, log } = app
 
   let allDownloads
   try {
@@ -182,7 +166,7 @@ async function pollDownloads(prisma, requests, app) {
           lbTracks: lbTracks ?? [],
           playlistName: library.weeklyPlaylistName(),
         })
-        await executeSideEffects(sideEffects, { library, importer, log, requestId: request.id })
+        for (const effect of sideEffects) app.events.emit('sideEffect', effect, { requestId: request.id })
         for (const f of dirFiles) {
           await soulseek.removeDownload(request.slskdUsername, f.id).catch(() => {})
         }
@@ -226,7 +210,7 @@ async function pollDownloads(prisma, requests, app) {
           dirName: trackDirName,
           lbTracks: [],
         })
-        await executeSideEffects(sideEffects, { library, importer, log, requestId: request.id })
+        for (const effect of sideEffects) app.events.emit('sideEffect', effect, { requestId: request.id })
         await soulseek.removeDownload(request.slskdUsername, match.id)
       } else if (match.state === 'Completed, Rejected' || request.downloadRetries >= MAX_TRACK_RETRIES) {
         const reason = match.state === 'Completed, Rejected' ? 'Track rejected by peer' : 'Max track retries reached'

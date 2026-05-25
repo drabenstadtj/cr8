@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
@@ -9,6 +10,7 @@ import { createSoulseekAdapter } from './adapters/soulseek.js'
 import { createRecommenderAdapter } from './adapters/recommender.js'
 import { createLibraryAdapter } from './adapters/library.js'
 import { createImporterAdapter } from './adapters/importer.js'
+import { registerSideEffectSubscribers } from './subscribers/side-effects.js'
 import authRoutes from './routes/auth.js'
 import searchRoutes from './routes/search.js'
 import requestRoutes from './routes/requests.js'
@@ -61,6 +63,7 @@ export async function createApp({
     secret: process.env.JWT_SECRET || 'changeme',
   })
 
+  app.decorate('events', new EventEmitter())
   app.decorate('prisma', _prisma)
   app.decorate('catalog', _catalog)
   app.decorate('soulseek', _soulseek)
@@ -97,6 +100,8 @@ export async function createApp({
   await app.register(adminRoutes, { prefix: '/api/admin' })
   await app.register(explorationRoutes, { prefix: '/api/exploration' })
   await app.register(lastfmRoutes, { prefix: '/api/lastfm' })
+
+  registerSideEffectSubscribers(app)
 
   app.get('/api/health', async () => ({ ok: true }))
   app.get('/api/config', { onRequest: [app.authenticate] }, async () => ({
