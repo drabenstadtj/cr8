@@ -13,14 +13,21 @@ const STATUS_LABEL = {
   FAILED: 'Failed',
 }
 
+function formatTime(iso) {
+  const d = new Date(iso)
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
 export default function Admin() {
   const [requests, setRequests] = useState([])
   const [invites, setInvites] = useState([])
   const [users, setUsers] = useState([])
+  const [status, setStatus] = useState(null)
   const [error, setError] = useState('')
   const [confirm, setConfirm] = useState(null)
   const [explorationMsg, setExplorationMsg] = useState('')
   const [playlistMsg, setPlaylistMsg] = useState('')
+  const [timeline, setTimeline] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -32,6 +39,15 @@ export default function Admin() {
       setInvites(invs)
       setUsers(usrs)
     }).catch(() => setError('Failed to load admin data'))
+  }, [])
+
+  useEffect(() => {
+    function fetchStatus() {
+      api.get('/admin/status').then(setStatus).catch(() => {})
+    }
+    fetchStatus()
+    const id = setInterval(fetchStatus, 30000)
+    return () => clearInterval(id)
   }, [])
 
   async function handleAction(id, action, reason) {
@@ -54,6 +70,11 @@ export default function Admin() {
     } catch {
       setError('Failed to delete request')
     }
+  }
+
+  async function openTimeline(request) {
+    const events = await api.get(`/admin/requests/${request.id}/events`).catch(() => [])
+    setTimeline({ request, events })
   }
 
   async function generateInvite() {
@@ -124,6 +145,86 @@ export default function Admin() {
         <h2>Admin</h2>
         {error && <p className={styles.error}>{error}</p>}
 
+        {status && (
+          <section className={styles.section}>
+            <h3>System</h3>
+
+            <div className={styles.workerRow}>
+              <span>
+                <span className={styles.statusLabel}>Worker</span>
+                {status.worker.isRunning
+                  ? 'Polling…'
+                  : status.worker.lastPollAt
+                    ? `Idle — last polled ${formatTime(status.worker.lastPollAt)}`
+                    : 'Not yet polled'
+                }
+              </span>
+            </div>
+
+            <div className={styles.statusGrid} style={{ marginTop: 14 }}>
+              {Object.entries(status.services).map(([name, s]) => (
+                <div key={name} className={styles.statusRow}>
+                  <span className={styles.statusLabel}>{name}</span>
+                  {!s
+                    ? <span className={styles.statusSkipped}>—</span>
+                    : s.skipped
+                      ? <span className={styles.statusSkipped}>not configured</span>
+                      : s.ok
+                        ? <>
+                            <span className={styles.statusOk}>ok</span>
+                            {s.latencyMs != null && <span className={styles.statusLatency}>{s.latencyMs}ms</span>}
+                          </>
+                        : <span className={styles.statusFail}>{s.error || 'unreachable'}</span>
+                  }
+                </div>
+              ))}
+            </div>
+
+            {status.exploration && (
+              <div style={{ marginTop: 14 }}>
+                <div className={styles.statusRow}>
+                  <span className={styles.statusLabel}>Last run</span>
+                  <span className={
+                    status.exploration.outcome === 'ok' ? styles.statusOk
+                    : status.exploration.outcome === 'empty' ? styles.statusSkipped
+                    : styles.statusFail
+                  }>
+                    {status.exploration.outcome}
+                  </span>
+                  <span className={styles.statusLatency}>{formatTime(status.exploration.startedAt)}</span>
+                </div>
+                <div className={styles.statusRow} style={{ marginTop: 4 }}>
+                  <span className={styles.statusLabel} />
+                  <span className={styles.statusLatency}>
+                    {status.exploration.usersProcessed} users · {status.exploration.requestsCreated} created · {status.exploration.albumsSkipped} skipped
+                    {status.exploration.failures?.length > 0 && ` · ${status.exploration.failures.length} failed`}
+                  </span>
+                </div>
+                {status.exploration.failures?.map((f, i) => (
+                  <div key={i} className={styles.statusRow} style={{ marginTop: 2 }}>
+                    <span className={styles.statusLabel} />
+                    <span className={styles.statusFail}>{f.lbUser}: {f.error}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {status.stuckRequests?.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <span className={styles.statusLabel} style={{ color: '#c07878' }}>Stuck</span>
+                <div style={{ marginTop: 6 }}>
+                  {status.stuckRequests.map((r) => (
+                    <div key={r.id} className={styles.stuckItem}>
+                      <strong>{r.title}</strong> — {r.artist}
+                      <span className={styles.itemMeta}> {r.status} since {formatTime(r.statusUpdatedAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h3>Actions</h3>
@@ -161,8 +262,12 @@ export default function Admin() {
               <li key={r.id} className={styles.item}>
                 <span className={styles.itemInfo}>
                   <strong>{r.title}</strong> — {r.artist}
+                  {r.status === 'FAILED' && r.rejectedReason && (
+                    <span className={styles.itemMeta}> — {r.rejectedReason}</span>
+                  )}
                 </span>
                 <span className={styles.badge}>{STATUS_LABEL[r.status] || r.status}</span>
+                <button className={styles.dimButton} onClick={() => openTimeline(r)}>History</button>
                 <button className={styles.dimButton} onClick={() => ask(`Delete "${r.title}"?`, () => handleDeleteRequest(r.id))}>Delete</button>
               </li>
             ))}
@@ -217,6 +322,36 @@ export default function Admin() {
           </ul>
         </section>
       </div>
+
+      {timeline && (
+        <div className={styles.overlay} onClick={() => setTimeline(null)}>
+          <div className={`${styles.dialog} ${styles.timelineDialog}`} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.timelineTitle}>
+              <strong>{timeline.request.title}</strong> — {timeline.request.artist}
+              <small>{STATUS_LABEL[timeline.request.status] || timeline.request.status}</small>
+            </div>
+            <div className={styles.timeline}>
+              {timeline.events.length === 0
+                ? <p className={styles.timelineEmpty}>No history yet.</p>
+                : timeline.events.map((e) => (
+                  <div key={e.id} className={styles.timelineEvent}>
+                    <div className={styles.timelineRow}>
+                      <span className={styles.timelineArrow}>
+                        {e.from} <span>→</span> {e.to}
+                      </span>
+                      <span className={styles.timelineTime}>{formatTime(e.createdAt)}</span>
+                    </div>
+                    {e.reason && <div className={styles.timelineReason}>{e.reason}</div>}
+                  </div>
+                ))
+              }
+            </div>
+            <div className={styles.dialogActions}>
+              <button onClick={() => setTimeline(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirm && (
         <div className={styles.overlay} onClick={() => setConfirm(null)}>

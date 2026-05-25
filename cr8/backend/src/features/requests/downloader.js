@@ -1,18 +1,20 @@
 import { collectCandidates, collectAlbumCandidates } from './scoring.js'
 import { applyTransition } from './apply-transition.js'
 import { EVENT } from './machine.js'
+import { workerState } from './worker-state.js'
 
 const POLL_INTERVAL_MS = 15000
 const MAX_TRACK_RETRIES = 3
 
-let workerRunning = false
-
 export function startDownloadWorker(app) {
   app.log.info('Download worker started')
   setInterval(() => {
-    if (workerRunning) return
-    workerRunning = true
-    runWorker(app).catch((e) => app.log.error(e)).finally(() => { workerRunning = false })
+    if (workerState.isRunning) return
+    workerState.isRunning = true
+    runWorker(app).catch((e) => app.log.error(e)).finally(() => {
+      workerState.isRunning = false
+      workerState.lastPollAt = new Date()
+    })
   }, POLL_INTERVAL_MS)
 }
 

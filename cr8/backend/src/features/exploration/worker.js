@@ -18,6 +18,8 @@ export async function triggerExploration(app) {
 async function runExploration(app) {
   const { prisma, recommender, library, log } = app
   const runId = crypto.randomUUID()
+  const startedAt = new Date()
+  const summary = { usersProcessed: 0, requestsCreated: 0, albumsSkipped: 0, failures: [] }
 
   const users = await prisma.user.findMany({
     where: { listenbrainzUsername: { not: null } },
@@ -26,23 +28,51 @@ async function runExploration(app) {
 
   if (!users.length) {
     log.info({ runId }, 'No users with ListenBrainz usernames, skipping exploration')
+    await writeRun(prisma, { runId, startedAt, outcome: 'empty', summary })
     return
   }
 
   log.info({ runId, users: users.length, playlist: PLAYLIST_TYPE }, 'Running weekly exploration')
 
   for (const user of users) {
-    await runForUser(prisma, user, recommender, library, log, runId).catch((e) =>
+    await runForUser(prisma, user, recommender, library, log, runId, summary).catch((e) => {
       log.warn({ runId, lbUser: user.listenbrainzUsername, err: e.message }, 'Exploration failed for user')
-    )
+      summary.failures.push({ lbUser: user.listenbrainzUsername, error: e.message })
+    })
   }
 
-  log.info({ runId }, 'Exploration run complete')
+  const outcome = summary.failures.length === 0
+    ? 'ok'
+    : summary.usersProcessed === 0
+      ? 'failed'
+      : 'partial'
+
+  log.info({ runId, outcome, ...summary }, 'Exploration run complete')
+  await writeRun(prisma, { runId, startedAt, outcome, summary })
 }
 
-async function runForUser(prisma, user, recommender, library, log, runId) {
+async function writeRun(prisma, { runId, startedAt, outcome, summary }) {
+  await prisma.explorationRun.create({
+    data: {
+      runId,
+      startedAt,
+      finishedAt: new Date(),
+      outcome,
+      usersProcessed: summary.usersProcessed,
+      requestsCreated: summary.requestsCreated,
+      albumsSkipped: summary.albumsSkipped,
+      failures: summary.failures.length ? JSON.stringify(summary.failures) : null,
+    },
+  }).catch((e) => {
+    // non-fatal: if DB write fails the run still happened
+    console.error('Failed to write ExplorationRun record:', e.message)
+  })
+}
+
+async function runForUser(prisma, user, recommender, library, log, runId, summary) {
   const lbUser = user.listenbrainzUsername
   log.info({ runId, lbUser }, 'Fetching LB recommendations')
+  summary.usersProcessed++
 
   const tracks = await recommender.weeklyTracks(lbUser, PLAYLIST_TYPE)
   log.info({ runId, lbUser, tracks: tracks.length }, 'Got LB tracks')
@@ -61,14 +91,21 @@ async function runForUser(prisma, user, recommender, library, log, runId) {
     const mbid = track.releaseMbid || track.mbid
     if (!mbid) {
       log.warn({ runId, lbUser, artist: track.mainArtist, album: track.album }, 'No MBID, skipping')
+      summary.albumsSkipped++
       continue
     }
 
     const existing = await prisma.request.findFirst({ where: { mbid } })
-    if (existing) continue
+    if (existing) {
+      summary.albumsSkipped++
+      continue
+    }
 
     const inLibrary = await library.contains(track.album, track.mainArtist)
-    if (inLibrary) continue
+    if (inLibrary) {
+      summary.albumsSkipped++
+      continue
+    }
 
     const coverArt = track.releaseMbid
       ? `https://coverartarchive.org/release/${track.releaseMbid}/front`
@@ -88,6 +125,7 @@ async function runForUser(prisma, user, recommender, library, log, runId) {
       },
     })
 
+    summary.requestsCreated++
     log.info({ runId, lbUser, artist: track.mainArtist, album: track.album }, 'Exploration request created')
   }
 }

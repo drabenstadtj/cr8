@@ -59,3 +59,16 @@ model RequestEvent {
   reason    String?
   createdAt DateTime @default(now())
 }
+
+model ExplorationRun {
+  id              String    @id @default(cuid())
+  runId           String    @unique
+  startedAt       DateTime
+  finishedAt      DateTime?
+  outcome         String    // 'ok' | 'partial' | 'failed' | 'empty'
+  usersProcessed  Int       @default(0)
+  requestsCreated Int       @default(0)
+  albumsSkipped   Int       @default(0)
+  failures        String?   // JSON: [{lbUser, error}]
+  createdAt       DateTime  @default(now())
+}

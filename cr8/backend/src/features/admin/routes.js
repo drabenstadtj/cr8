@@ -2,12 +2,64 @@ import crypto from 'crypto'
 import { triggerExploration } from '../exploration/worker.js'
 import { applyTransition } from '../requests/apply-transition.js'
 import { EVENT } from '../requests/machine.js'
+import { workerState } from '../requests/worker-state.js'
+import { getServiceStatus } from '../../lib/probes.js'
+
+const STUCK_THRESHOLDS_MS = {
+  SEARCHING: 30 * 60 * 1000,
+  DOWNLOADING: 2 * 60 * 60 * 1000,
+}
 
 export default async function adminRoutes(app) {
   app.get('/requests', { onRequest: [app.requireAdmin] }, async (req) => {
     return req.prisma.request.findMany({
       include: { user: { select: { id: true, username: true } } },
       orderBy: { createdAt: 'desc' },
+    })
+  })
+
+  app.get('/status', { onRequest: [app.requireAdmin] }, async (req) => {
+    const stuckRequests = []
+    for (const [status, thresholdMs] of Object.entries(STUCK_THRESHOLDS_MS)) {
+      const cutoff = new Date(Date.now() - thresholdMs)
+      const rows = await req.prisma.request.findMany({
+        where: { status, statusUpdatedAt: { lt: cutoff } },
+        select: { id: true, title: true, artist: true, status: true, statusUpdatedAt: true, slskdUsername: true },
+        orderBy: { statusUpdatedAt: 'asc' },
+      })
+      stuckRequests.push(...rows)
+    }
+    const latestRun = await req.prisma.explorationRun.findFirst({
+      orderBy: { startedAt: 'desc' },
+    })
+
+    return {
+      worker: {
+        isRunning: workerState.isRunning,
+        lastPollAt: workerState.lastPollAt,
+      },
+      exploration: latestRun ? {
+        runId: latestRun.runId,
+        startedAt: latestRun.startedAt,
+        finishedAt: latestRun.finishedAt,
+        outcome: latestRun.outcome,
+        usersProcessed: latestRun.usersProcessed,
+        requestsCreated: latestRun.requestsCreated,
+        albumsSkipped: latestRun.albumsSkipped,
+        failures: latestRun.failures ? JSON.parse(latestRun.failures) : [],
+      } : null,
+      services: getServiceStatus(),
+      stuckRequests,
+    }
+  })
+
+  app.get('/requests/:id/events', { onRequest: [app.requireAdmin] }, async (req, reply) => {
+    const request = await req.prisma.request.findUnique({ where: { id: req.params.id } })
+    if (!request) return reply.code(404).send({ error: 'Not found' })
+    return req.prisma.requestEvent.findMany({
+      where: { requestId: req.params.id },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, from: true, to: true, reason: true, createdAt: true },
     })
   })
 
