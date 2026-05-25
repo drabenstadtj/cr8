@@ -1,5 +1,4 @@
 import bcrypt from 'bcrypt'
-import { createGonicUser } from '../services/gonic.js'
 
 const authRateLimit = {
   config: {
@@ -24,7 +23,6 @@ function validateUsername(username) {
 }
 
 export default async function authRoutes(app) {
-  // POST /auth/register
   app.post('/register', authRateLimit, async (req, reply) => {
     const { username, password, token } = req.body
 
@@ -57,7 +55,7 @@ export default async function authRoutes(app) {
     })
 
     try {
-      await createGonicUser(username, password)
+      await app.library.createUser(username, password)
     } catch (err) {
       app.log.warn({ err: err.message }, 'Failed to create Gonic user — continuing anyway')
     }
@@ -69,7 +67,6 @@ export default async function authRoutes(app) {
     return reply.send({ token: jwtToken })
   })
 
-  // POST /auth/login
   app.post('/login', authRateLimit, async (req, reply) => {
     const { username, password } = req.body
 
@@ -78,7 +75,6 @@ export default async function authRoutes(app) {
     }
 
     const user = await req.prisma.user.findUnique({ where: { username } })
-    // Constant-time comparison even on not-found to prevent user enumeration
     const hash = user?.password || '$2b$10$invalidhashpaddingtomakethisslow000000000000000000000'
     const valid = await bcrypt.compare(password, hash)
 
@@ -91,7 +87,6 @@ export default async function authRoutes(app) {
     return reply.send({ token })
   })
 
-  // GET /auth/me
   app.get('/me', { onRequest: [app.authenticate] }, async (req) => {
     const user = await req.prisma.user.findUnique({
       where: { id: req.user.id },
@@ -100,7 +95,6 @@ export default async function authRoutes(app) {
     return user
   })
 
-  // PATCH /auth/me — update current user's profile
   app.patch('/me', { onRequest: [app.authenticate] }, async (req, reply) => {
     const { listenbrainzUsername } = req.body
     if (listenbrainzUsername !== undefined && listenbrainzUsername !== null) {

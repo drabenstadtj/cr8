@@ -71,9 +71,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Debug SSH target
-        run: echo "Connecting to ${{ secrets.SSH_HOST }}:2341 as ${{ secrets.SSH_USER }}"
-
       - name: Deploy to server
         uses: appleboy/ssh-action@v1
         with:

@@ -1,13 +1,9 @@
 import cron from 'node-cron'
-import { getWeeklyTracks } from '../services/listenbrainz.js'
-import { checkDuplicateInLibrary } from '../services/gonic.js'
 
 const PLAYLIST_TYPE = process.env.LB_PLAYLIST || 'weekly-exploration'
 
-
 export function startExplorationWorker(app) {
   app.log.info('Exploration worker started — scheduled for Mondays at 08:30')
-  // Run every Monday at 08:30 (LB generates weekly-exploration playlists ~08:00 Monday)
   cron.schedule('30 8 * * 1', () => {
     runExploration(app).catch((e) => app.log.error({ err: e.message }, 'Exploration worker failed'))
   })
@@ -18,7 +14,7 @@ export async function triggerExploration(app) {
 }
 
 async function runExploration(app) {
-  const prisma = app.prisma
+  const { prisma, recommender, library, log } = app
 
   const users = await prisma.user.findMany({
     where: { listenbrainzUsername: { not: null } },
@@ -26,26 +22,25 @@ async function runExploration(app) {
   })
 
   if (!users.length) {
-    app.log.info('No users with ListenBrainz usernames, skipping exploration')
+    log.info('No users with ListenBrainz usernames, skipping exploration')
     return
   }
 
-  app.log.info({ users: users.length, playlist: PLAYLIST_TYPE }, 'Running weekly exploration')
+  log.info({ users: users.length, playlist: PLAYLIST_TYPE }, 'Running weekly exploration')
 
   for (const user of users) {
-    await runForUser(prisma, user, app.log).catch((e) =>
-      app.log.warn({ user: user.listenbrainzUsername, err: e.message }, 'Exploration failed for user')
+    await runForUser(prisma, user, recommender, library, log).catch((e) =>
+      log.warn({ user: user.listenbrainzUsername, err: e.message }, 'Exploration failed for user')
     )
   }
 }
 
-async function runForUser(prisma, user, log) {
+async function runForUser(prisma, user, recommender, library, log) {
   log.info({ lbUser: user.listenbrainzUsername }, 'Fetching LB recommendations')
 
-  const tracks = await getWeeklyTracks(user.listenbrainzUsername, PLAYLIST_TYPE)
+  const tracks = await recommender.weeklyTracks(user.listenbrainzUsername, PLAYLIST_TYPE)
   log.info({ lbUser: user.listenbrainzUsername, tracks: tracks.length }, 'Got LB tracks')
 
-  // One request per album — deduplicate by artist+album, collect all LB tracks per album
   const albumMap = new Map()
   for (const track of tracks) {
     if (!track.album || !track.mainArtist) continue
@@ -66,7 +61,7 @@ async function runForUser(prisma, user, log) {
     const existing = await prisma.request.findFirst({ where: { mbid } })
     if (existing) continue
 
-    const inLibrary = await checkDuplicateInLibrary(track.album, track.mainArtist)
+    const inLibrary = await library.contains(track.album, track.mainArtist)
     if (inLibrary) continue
 
     const coverArt = track.releaseMbid

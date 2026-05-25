@@ -1,13 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import bcrypt from 'bcrypt'
 import { createApp } from '../src/app.js'
-
-// Stub out external service calls made by routes
-vi.mock('../src/services/gonic.js', () => ({
-  createGonicUser: vi.fn().mockResolvedValue(undefined),
-  checkDuplicateInLibrary: vi.fn().mockResolvedValue(false),
-  deleteGonicUser: vi.fn().mockResolvedValue(undefined),
-}))
+import { createFakeLibrary } from '../src/adapters/fakes.js'
 
 const PASSWORD = 'password123'
 const HASH = await bcrypt.hash(PASSWORD, 10)
@@ -44,8 +38,11 @@ function mockPrisma(overrides = {}) {
   }
 }
 
-async function buildApp(prismaOverrides = {}) {
-  return createApp({ prisma: mockPrisma(prismaOverrides) })
+async function buildApp(prismaOverrides = {}, libraryOverrides = {}) {
+  return createApp({
+    prisma: mockPrisma(prismaOverrides),
+    library: createFakeLibrary(libraryOverrides),
+  })
 }
 
 // ─── health ──────────────────────────────────────────────────────────────────

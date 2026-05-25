@@ -4,6 +4,11 @@ import jwt from '@fastify/jwt'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { PrismaClient } from '@prisma/client'
+import { createCatalogAdapter } from './adapters/catalog.js'
+import { createSoulseekAdapter } from './adapters/soulseek.js'
+import { createRecommenderAdapter } from './adapters/recommender.js'
+import { createLibraryAdapter } from './adapters/library.js'
+import { createImporterAdapter } from './adapters/importer.js'
 import authRoutes from './routes/auth.js'
 import searchRoutes from './routes/search.js'
 import requestRoutes from './routes/requests.js'
@@ -13,8 +18,20 @@ import lastfmRoutes from './routes/lastfm.js'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
-export async function createApp({ prisma } = {}) {
+export async function createApp({
+  prisma,
+  catalog,
+  soulseek,
+  recommender,
+  library,
+  importer,
+} = {}) {
   const _prisma = prisma || new PrismaClient()
+  const _catalog = catalog || createCatalogAdapter()
+  const _soulseek = soulseek || createSoulseekAdapter()
+  const _recommender = recommender || createRecommenderAdapter()
+  const _library = library || createLibraryAdapter()
+  const _importer = importer || createImporterAdapter()
 
   const app = Fastify({
     logger: process.env.NODE_ENV === 'test' ? false : isDev ? {
@@ -45,6 +62,12 @@ export async function createApp({ prisma } = {}) {
   })
 
   app.decorate('prisma', _prisma)
+  app.decorate('catalog', _catalog)
+  app.decorate('soulseek', _soulseek)
+  app.decorate('recommender', _recommender)
+  app.decorate('library', _library)
+  app.decorate('importer', _importer)
+
   app.addHook('onRequest', async (req) => {
     req.prisma = _prisma
   })

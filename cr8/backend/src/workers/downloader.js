@@ -1,17 +1,4 @@
-import {
-  startSearch,
-  waitForSearch,
-  collectCandidates,
-  collectAlbumCandidates,
-  queueBestDownload,
-  queueAlbumDownload,
-  getDownloads,
-  deleteSearch,
-  cleanupDownload,
-  requeueFiles,
-} from '../services/slskd.js'
-import { triggerBetaninImport } from '../services/betanin.js'
-import { triggerGonicScan, addAlbumToWeeklyPlaylist, addTracksToWeeklyPlaylist } from '../services/gonic.js'
+import { collectCandidates, collectAlbumCandidates } from '../lib/scoring.js'
 
 const POLL_INTERVAL_MS = 15000
 const MAX_TRACK_RETRIES = 3
@@ -32,16 +19,17 @@ async function runWorker(app) {
 
   const approved = await prisma.request.findMany({ where: { status: 'APPROVED' } })
   for (const req of approved) {
-    await startDownload(prisma, req, app.log)
+    await startDownload(prisma, req, app)
   }
 
   const downloading = await prisma.request.findMany({ where: { status: 'DOWNLOADING' } })
   if (downloading.length) {
-    await pollDownloads(prisma, downloading, app.log)
+    await pollDownloads(prisma, downloading, app)
   }
 }
 
-async function startDownload(prisma, request, log) {
+async function startDownload(prisma, request, app) {
+  const { soulseek, log } = app
   log.info({ id: request.id, type: request.type }, 'Starting slskd search')
 
   try {
@@ -52,11 +40,11 @@ async function startDownload(prisma, request, log) {
       ? `${request.artist} ${request.album || request.title}`
       : `${request.artist} - ${request.title}`
 
-    const searchId = await startSearch(searchText)
+    const searchId = await soulseek.startSearch(searchText)
     await prisma.request.update({ where: { id: request.id }, data: { slskdSearchId: searchId } })
 
-    const responses = await waitForSearch(searchId)
-    await deleteSearch(searchId)
+    const responses = await soulseek.pollSearch(searchId)
+    await soulseek.cancelSearch(searchId)
 
     if (isAlbum) {
       const candidates = collectAlbumCandidates(responses, {
@@ -70,20 +58,32 @@ async function startDownload(prisma, request, log) {
         return
       }
 
-      const queued = await queueAlbumDownload(candidates)
+      const best = candidates[0]
+      let queued = null
+      for (const candidate of candidates) {
+        try {
+          await soulseek.queueFiles(candidate.username, candidate.files)
+          queued = candidate
+          break
+        } catch { continue }
+      }
+
+      if (!queued) {
+        log.warn({ id: request.id }, 'Failed to queue any album candidate')
+        await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
+        return
+      }
+
       await prisma.request.update({
         where: { id: request.id },
         data: {
           status: 'DOWNLOADING',
           slskdUsername: queued.username,
-          slskdFilename: queued.directory, // store directory for album polling
+          slskdFilename: queued.directory,
         },
       })
 
-      log.info(
-        { id: request.id, dir: queued.directory, tracks: queued.files.length },
-        'Album download queued'
-      )
+      log.info({ id: request.id, dir: queued.directory, tracks: queued.files.length }, 'Album download queued')
     } else {
       const candidates = collectCandidates(responses, {
         title: request.title,
@@ -98,7 +98,21 @@ async function startDownload(prisma, request, log) {
         return
       }
 
-      const queued = await queueBestDownload(candidates)
+      let queued = null
+      for (const candidate of candidates) {
+        try {
+          await soulseek.queueFiles(candidate.username, [{ filename: candidate.filename, size: candidate.size }])
+          queued = candidate
+          break
+        } catch { continue }
+      }
+
+      if (!queued) {
+        log.warn({ id: request.id }, 'Failed to queue any track candidate')
+        await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
+        return
+      }
+
       await prisma.request.update({
         where: { id: request.id },
         data: {
@@ -116,10 +130,12 @@ async function startDownload(prisma, request, log) {
   }
 }
 
-async function pollDownloads(prisma, requests, log) {
+async function pollDownloads(prisma, requests, app) {
+  const { soulseek, library, importer, log } = app
+
   let allDownloads
   try {
-    allDownloads = await getDownloads()
+    allDownloads = await soulseek.getDownloads()
   } catch {
     return
   }
@@ -133,7 +149,6 @@ async function pollDownloads(prisma, requests, log) {
 
   for (const request of requests) {
     if (request.type === 'ALBUM') {
-      // slskdFilename stores the directory for album requests
       const dirFiles = allFiles.filter(
         (f) =>
           f.username === request.slskdUsername &&
@@ -151,18 +166,18 @@ async function pollDownloads(prisma, requests, log) {
         log.info({ id: request.id, tracks: dirFiles.length }, 'Album download complete')
         await prisma.request.update({ where: { id: request.id }, data: { status: 'COMPLETE' } })
         const dirName = request.slskdFilename.replace(/\\/g, '/').split('/').filter(Boolean).pop()
-        await triggerBetaninImport(dirName).catch(
+        await importer.importDownload(dirName).catch(
           (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
         )
-        triggerGonicScan()
+        library.scanLibrary()
         const lbTracks = request.lbTrackTitles ? JSON.parse(request.lbTrackTitles) : null
         if (lbTracks?.length) {
-          addTracksToWeeklyPlaylist(lbTracks).catch(
+          library.addTracksToPlaylist(library.weeklyPlaylistName(), lbTracks).catch(
             (e) => log.warn({ id: request.id, err: e.message }, 'Weekly playlist update failed')
           )
         }
         for (const f of dirFiles) {
-          await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
+          await soulseek.removeDownload(request.slskdUsername, f.id).catch(() => {})
         }
       } else if (anyFailed) {
         const completedFiles = dirFiles.filter((f) => f.state?.startsWith('Completed,'))
@@ -170,26 +185,24 @@ async function pollDownloads(prisma, requests, log) {
         const failedFiles = completedFiles.filter((f) => f.state !== 'Completed, Succeeded')
 
         if (allRejected || request.downloadRetries >= MAX_TRACK_RETRIES) {
-          // Give up on this peer — clean up all files and try a fresh search
           const reason = allRejected ? 'Album rejected by peer' : 'Max track retries reached'
           log.warn({ id: request.id, user: request.slskdUsername, retries: request.downloadRetries }, `${reason} — retrying with new search`)
           for (const f of dirFiles) {
-            await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
+            await soulseek.removeDownload(request.slskdUsername, f.id).catch(() => {})
           }
           await prisma.request.update({
             where: { id: request.id },
             data: { status: 'APPROVED', slskdUsername: null, slskdFilename: null, downloadRetries: 0 },
           })
         } else {
-          // Retry just the failed tracks from the same peer
           log.warn(
             { id: request.id, failed: failedFiles.length, retry: request.downloadRetries + 1 },
             'Retrying failed tracks'
           )
           for (const f of failedFiles) {
-            await cleanupDownload(request.slskdUsername, f.id).catch(() => {})
+            await soulseek.removeDownload(request.slskdUsername, f.id).catch(() => {})
           }
-          await requeueFiles(request.slskdUsername, failedFiles).catch((e) => {
+          await soulseek.requeueFiles(request.slskdUsername, failedFiles).catch((e) => {
             log.warn({ id: request.id, err: e.message }, 'Failed to requeue tracks — will retry next poll')
           })
           await prisma.request.update({
@@ -209,20 +222,20 @@ async function pollDownloads(prisma, requests, log) {
         log.info({ id: request.id }, 'Download complete')
         await prisma.request.update({ where: { id: request.id }, data: { status: 'COMPLETE' } })
         const trackDirName = request.slskdFilename.replace(/\\/g, '/').split('/').filter(Boolean).slice(-2, -1)[0] || request.slskdFilename
-        await triggerBetaninImport(trackDirName).catch(
+        await importer.importDownload(trackDirName).catch(
           (e) => log.warn({ err: e.message }, 'betanin import trigger failed')
         )
-        triggerGonicScan()
-        await cleanupDownload(request.slskdUsername, match.id)
+        library.scanLibrary()
+        await soulseek.removeDownload(request.slskdUsername, match.id)
       } else if (match.state === 'Completed, Rejected' || request.downloadRetries >= MAX_TRACK_RETRIES) {
         const reason = match.state === 'Completed, Rejected' ? 'Track rejected by peer' : 'Max track retries reached'
         log.warn({ id: request.id, user: request.slskdUsername, retries: request.downloadRetries }, `${reason} — retrying with new search`)
-        await cleanupDownload(request.slskdUsername, match.id).catch(() => {})
+        await soulseek.removeDownload(request.slskdUsername, match.id).catch(() => {})
         await prisma.request.update({ where: { id: request.id }, data: { status: 'APPROVED', slskdUsername: null, slskdFilename: null, downloadRetries: 0 } })
       } else if (match.state?.startsWith('Completed,')) {
         log.warn({ id: request.id, state: match.state, retry: request.downloadRetries + 1 }, 'Track download failed — retrying')
-        await cleanupDownload(request.slskdUsername, match.id).catch(() => {})
-        await requeueFiles(request.slskdUsername, [match]).catch((e) => {
+        await soulseek.removeDownload(request.slskdUsername, match.id).catch(() => {})
+        await soulseek.requeueFiles(request.slskdUsername, [match]).catch((e) => {
           log.warn({ id: request.id, err: e.message }, 'Failed to requeue track — will retry next poll')
         })
         await prisma.request.update({ where: { id: request.id }, data: { downloadRetries: request.downloadRetries + 1 } })

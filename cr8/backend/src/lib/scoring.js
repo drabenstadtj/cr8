@@ -1,34 +1,18 @@
-const BASE = () => process.env.SLSKD_URL
-const API_KEY = () => process.env.SLSKD_API_KEY
+export const PREFERRED_EXTS = ['flac', 'mp3', 'ogg', 'm4a']
+export const MIN_BITRATE = 192
+export const MIN_BIT_DEPTH = 0
+export const DURATION_TOLERANCE_S = 10
+export const DOWNLOAD_ATTEMPTS = 3
 
-const PREFERRED_EXTS = ['flac', 'mp3', 'ogg', 'm4a']
-const MIN_BITRATE = 192
-const MIN_BIT_DEPTH = 0
-const DURATION_TOLERANCE_S = 10
-const DOWNLOAD_ATTEMPTS = 3
-
-// Keywords to reject if they appear in a filename but NOT in the track title/artist
-const BLACKLIST_KEYWORDS = ['karaoke', 'instrumental', 'acappella', 'cover', 'bootleg', 'tribute']
-// These need word-boundary checks because they're common words
-const BLACKLIST_WORD_KEYWORDS = ['live']
-
-function headers() {
-  return { 'X-API-Key': API_KEY(), 'Content-Type': 'application/json' }
-}
-
-async function slskdFetch(path, options = {}) {
-  const res = await fetch(`${BASE()}${path}`, { ...options, headers: headers() })
-  if (!res.ok) throw new Error(`slskd error ${res.status}: ${path}`)
-  if (res.status === 204) return null
-  return res.json()
-}
+export const BLACKLIST_KEYWORDS = ['karaoke', 'instrumental', 'acappella', 'cover', 'bootleg', 'tribute']
+export const BLACKLIST_WORD_KEYWORDS = ['live']
 
 // Strip punctuation/symbols but keep all Unicode letters and numbers (including CJK etc.)
 // NFD decomposition strips combining diacritics so "Böhm" and "Bohm" both normalise to "bohm".
-function alnumOnly(str) {
+export function alnumOnly(str) {
   return str
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
@@ -36,14 +20,14 @@ function alnumOnly(str) {
 }
 
 // Strip featuring credits: "Artist ft. X", "Artist feat. X", "Artist (feat. X)"
-function mainArtist(artist) {
+export function mainArtist(artist) {
   return alnumOnly(
     (artist || '').replace(/\s*[\(\[]?(?:ft|feat|featuring|with)\.?\s+.*/i, '').trim()
   )
 }
 
 // Check all significant words (>2 chars) from query appear in filename
-function wordMatch(sanitizedFilename, sanitizedQuery) {
+export function wordMatch(sanitizedFilename, sanitizedQuery) {
   if (!sanitizedQuery) return false
   const words = sanitizedQuery.split(' ').filter((w) => w.length > 2)
   if (!words.length) return sanitizedFilename.includes(sanitizedQuery)
@@ -51,7 +35,7 @@ function wordMatch(sanitizedFilename, sanitizedQuery) {
 }
 
 // Return true if the filename contains a blacklisted keyword that isn't in the track title/artist
-function hasBlacklistedKeyword(sanitizedFilename, sanitizedTitle, sanitizedArtist) {
+export function hasBlacklistedKeyword(sanitizedFilename, sanitizedTitle, sanitizedArtist) {
   for (const kw of BLACKLIST_KEYWORDS) {
     if (sanitizedTitle.includes(kw) || sanitizedArtist.includes(kw)) continue
     if (sanitizedFilename.includes(kw)) return true
@@ -63,7 +47,7 @@ function hasBlacklistedKeyword(sanitizedFilename, sanitizedTitle, sanitizedArtis
   return false
 }
 
-function getExtension(file) {
+export function getExtension(file) {
   let ext = (file.extension || '').toLowerCase().replace(/^\./, '')
   if (!ext) {
     const match = file.filename.match(/\.([a-z0-9]+)$/i)
@@ -72,48 +56,26 @@ function getExtension(file) {
   return ext
 }
 
-export async function startSearch(searchText) {
-  const data = await slskdFetch('/api/v0/searches', {
-    method: 'POST',
-    body: JSON.stringify({ searchText }),
-  })
-  return data.id
-}
-
-export async function waitForSearch(searchId, retries = 20) {
-  for (let i = 0; i < retries; i++) {
-    const search = await slskdFetch(`/api/v0/searches/${searchId}`)
-    if (search.isComplete) {
-      if (search.fileCount === 0 || search.fileCount === search.lockedFileCount) {
-        throw new Error(`Search complete but no available files found`)
-      }
-      return slskdFetch(`/api/v0/searches/${searchId}/responses`)
-    }
-    await new Promise((r) => setTimeout(r, 15000))
-  }
-  throw new Error(`Search ${searchId} did not complete after ${retries} retries`)
-}
-
-function getDirectory(filename) {
+export function getDirectory(filename) {
   const sep = filename.includes('\\') ? '\\' : '/'
   const idx = filename.lastIndexOf(sep)
   return idx === -1 ? '' : filename.substring(0, idx)
 }
 
-function getBasename(filename) {
+export function getBasename(filename) {
   const sep = filename.includes('\\') ? '\\' : '/'
   return filename.substring(filename.lastIndexOf(sep) + 1)
 }
 
 // Extract leading track number from filename basename, e.g. "02 - Foo.flac" → 2
-function extractTrackNumber(filename) {
+export function extractTrackNumber(filename) {
   const base = getBasename(filename)
   const m = base.match(/^(\d{1,3})[\s\-_.]/)
   return m ? parseInt(m[1], 10) : null
 }
 
 // Returns true if the file list has duplicate track numbers (messy/double-rip folder)
-function hasDuplicateTracks(files) {
+export function hasDuplicateTracks(files) {
   const seen = new Set()
   for (const f of files) {
     const n = extractTrackNumber(f.filename)
@@ -143,8 +105,6 @@ export function collectCandidates(responses, { title, artist, album, durationS }
       if (hasBlacklistedKeyword(sanitizedFilename, sanitizedTitle, sanitizedMainArtist)) continue
 
       const titleMatch = wordMatch(sanitizedFilename, sanitizedTitle)
-      // Artist must appear in the path/filename; album is only a fallback when mainArtist
-      // strips down to nothing (e.g. pure "feat. X" credits with no primary artist).
       const artistMatch = sanitizedMainArtist && wordMatch(sanitizedFilename, sanitizedMainArtist)
       const albumMatch = sanitizedAlbum && wordMatch(sanitizedFilename, sanitizedAlbum)
       const secondaryMatch = sanitizedMainArtist ? artistMatch : albumMatch
@@ -172,7 +132,6 @@ export function collectCandidates(responses, { title, artist, album, durationS }
     }
   }
 
-  // Sort: free slot first, then best extension, then highest bitrate
   candidates.sort((a, b) => a.freeSlot - b.freeSlot || a.extRank - b.extRank || b.bitrate - a.bitrate)
   return candidates.slice(0, DOWNLOAD_ATTEMPTS)
 }
@@ -182,7 +141,7 @@ export function collectAlbumCandidates(responses, { artist, album }) {
   const sanitizedArtist = mainArtist(artist)
   const sanitizedAlbum = alnumOnly(album || '')
 
-  const groups = new Map() // key: "username\0directory"
+  const groups = new Map()
 
   for (const response of responses) {
     for (const file of response.files || []) {
@@ -215,12 +174,10 @@ export function collectAlbumCandidates(responses, { artist, album }) {
     }
   }
 
-  // Only keep groups with at least 2 music files and no duplicate track numbers
   const candidates = [...groups.values()].filter(
     (g) => g.files.length >= 2 && !hasDuplicateTracks(g.files)
   )
 
-  // Sort: free slot first, most files, best avg extension, highest avg bitrate
   candidates.sort((a, b) => {
     if (a.freeSlot !== b.freeSlot) return a.freeSlot - b.freeSlot
     if (b.files.length !== a.files.length) return b.files.length - a.files.length
@@ -231,61 +188,4 @@ export function collectAlbumCandidates(responses, { artist, album }) {
   })
 
   return candidates.slice(0, DOWNLOAD_ATTEMPTS)
-}
-
-// Try candidates in order until one queues successfully
-export async function queueBestDownload(candidates) {
-  for (const candidate of candidates) {
-    try {
-      await slskdFetch(`/api/v0/transfers/downloads/${candidate.username}`, {
-        method: 'POST',
-        body: JSON.stringify([{ filename: candidate.filename, size: candidate.size }]),
-      })
-      return candidate
-    } catch {
-      continue
-    }
-  }
-  throw new Error('Failed to queue any candidate')
-}
-
-// Queue all files in an album candidate
-export async function queueAlbumDownload(candidates) {
-  for (const candidate of candidates) {
-    try {
-      await slskdFetch(`/api/v0/transfers/downloads/${candidate.username}`, {
-        method: 'POST',
-        body: JSON.stringify(candidate.files.map((f) => ({ filename: f.filename, size: f.size }))),
-      })
-      return candidate
-    } catch {
-      continue
-    }
-  }
-  throw new Error('Failed to queue any album candidate')
-}
-
-export async function getDownloads() {
-  return slskdFetch('/api/v0/transfers/downloads')
-}
-
-export async function requeueFiles(username, files) {
-  await slskdFetch(`/api/v0/transfers/downloads/${username}`, {
-    method: 'POST',
-    body: JSON.stringify(files.map((f) => ({ filename: f.filename, size: f.size }))),
-  })
-}
-
-export async function deleteSearch(searchId) {
-  await slskdFetch(`/api/v0/searches/${searchId}`, { method: 'DELETE' })
-}
-
-export async function cleanupDownload(username, downloadId) {
-  await slskdFetch(`/api/v0/transfers/downloads/${username}/${downloadId}?remove=false`, {
-    method: 'DELETE',
-  })
-  await new Promise((r) => setTimeout(r, 1000))
-  await slskdFetch(`/api/v0/transfers/downloads/${username}/${downloadId}?remove=true`, {
-    method: 'DELETE',
-  })
 }

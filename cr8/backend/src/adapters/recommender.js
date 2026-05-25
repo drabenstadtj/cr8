@@ -76,11 +76,15 @@ async function enrichMissingAlbums(tracks) {
   }
 }
 
-export async function getWeeklyTracks(lbUser, playlistType = 'weekly-exploration') {
-  const playlistId = await findCurrentPlaylistId(lbUser, playlistType)
-  const data = await lbFetch(`playlist/${playlistId}`)
-  const raw = data?.playlist?.track ?? []
-  const tracks = raw.map(parseTrack)
-  await enrichMissingAlbums(tracks)
-  return tracks
+export function createRecommenderAdapter() {
+  return {
+    async weeklyTracks(lbUser, playlistType = 'weekly-exploration') {
+      const playlistId = await findCurrentPlaylistId(lbUser, playlistType)
+      const data = await lbFetch(`playlist/${playlistId}`)
+      const raw = data?.playlist?.track ?? []
+      const tracks = raw.map(parseTrack)
+      await enrichMissingAlbums(tracks)
+      return tracks
+    },
+  }
 }
