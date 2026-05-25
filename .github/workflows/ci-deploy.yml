@@ -71,6 +71,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Debug SSH target
+        run: echo "Connecting to ${{ secrets.SSH_HOST }}:2341 as ${{ secrets.SSH_USER }}"
+
       - name: Deploy to server
         uses: appleboy/ssh-action@v1
         with:
@@ -78,6 +81,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: 2341
+          timeout: 60s
+          command_timeout: 10m
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             docker compose pull cr8-backend cr8-frontend
