@@ -16,6 +16,7 @@ export const EVENT = {
   SEARCH_STARTED: 'SEARCH_STARTED',
   NO_CANDIDATES: 'NO_CANDIDATES',
   QUEUE_FAILED: 'QUEUE_FAILED',
+  SEARCH_ERROR: 'SEARCH_ERROR',
   DOWNLOAD_QUEUED: 'DOWNLOAD_QUEUED',
   DOWNLOAD_COMPLETE: 'DOWNLOAD_COMPLETE',
   PEER_RETRY: 'PEER_RETRY',
@@ -59,6 +60,9 @@ export function transition(state, event, payload = {}) {
           sideEffects: [],
         }
       }
+      if (event === EVENT.SEARCH_ERROR) {
+        return { nextState: STATUS.FAILED, data: {}, sideEffects: [] }
+      }
       break
 
     case STATUS.SEARCHING:
@@ -66,6 +70,9 @@ export function transition(state, event, payload = {}) {
         return { nextState: STATUS.FAILED, data: {}, sideEffects: [] }
       }
       if (event === EVENT.QUEUE_FAILED) {
+        return { nextState: STATUS.FAILED, data: {}, sideEffects: [] }
+      }
+      if (event === EVENT.SEARCH_ERROR) {
         return { nextState: STATUS.FAILED, data: {}, sideEffects: [] }
       }
       if (event === EVENT.DOWNLOAD_QUEUED) {

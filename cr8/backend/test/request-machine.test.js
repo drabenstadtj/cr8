@@ -31,6 +31,11 @@ describe('transition: APPROVED', () => {
     expect(data.slskdSearchId).toBe('abc')
   })
 
+  it('SEARCH_ERROR → FAILED', () => {
+    const { nextState } = transition(STATUS.APPROVED, EVENT.SEARCH_ERROR)
+    expect(nextState).toBe(STATUS.FAILED)
+  })
+
   it('throws on invalid event', () => {
     expect(() => transition(STATUS.APPROVED, EVENT.APPROVE)).toThrow()
   })
@@ -44,6 +49,11 @@ describe('transition: SEARCHING', () => {
 
   it('QUEUE_FAILED → FAILED', () => {
     const { nextState } = transition(STATUS.SEARCHING, EVENT.QUEUE_FAILED)
+    expect(nextState).toBe(STATUS.FAILED)
+  })
+
+  it('SEARCH_ERROR → FAILED', () => {
+    const { nextState } = transition(STATUS.SEARCHING, EVENT.SEARCH_ERROR)
     expect(nextState).toBe(STATUS.FAILED)
   })
 

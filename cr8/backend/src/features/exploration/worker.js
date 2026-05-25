@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import cron from 'node-cron'
 import { config } from '../../config.js'
 
@@ -16,6 +17,7 @@ export async function triggerExploration(app) {
 
 async function runExploration(app) {
   const { prisma, recommender, library, log } = app
+  const runId = crypto.randomUUID()
 
   const users = await prisma.user.findMany({
     where: { listenbrainzUsername: { not: null } },
@@ -23,24 +25,27 @@ async function runExploration(app) {
   })
 
   if (!users.length) {
-    log.info('No users with ListenBrainz usernames, skipping exploration')
+    log.info({ runId }, 'No users with ListenBrainz usernames, skipping exploration')
     return
   }
 
-  log.info({ users: users.length, playlist: PLAYLIST_TYPE }, 'Running weekly exploration')
+  log.info({ runId, users: users.length, playlist: PLAYLIST_TYPE }, 'Running weekly exploration')
 
   for (const user of users) {
-    await runForUser(prisma, user, recommender, library, log).catch((e) =>
-      log.warn({ user: user.listenbrainzUsername, err: e.message }, 'Exploration failed for user')
+    await runForUser(prisma, user, recommender, library, log, runId).catch((e) =>
+      log.warn({ runId, lbUser: user.listenbrainzUsername, err: e.message }, 'Exploration failed for user')
     )
   }
+
+  log.info({ runId }, 'Exploration run complete')
 }
 
-async function runForUser(prisma, user, recommender, library, log) {
-  log.info({ lbUser: user.listenbrainzUsername }, 'Fetching LB recommendations')
+async function runForUser(prisma, user, recommender, library, log, runId) {
+  const lbUser = user.listenbrainzUsername
+  log.info({ runId, lbUser }, 'Fetching LB recommendations')
 
-  const tracks = await recommender.weeklyTracks(user.listenbrainzUsername, PLAYLIST_TYPE)
-  log.info({ lbUser: user.listenbrainzUsername, tracks: tracks.length }, 'Got LB tracks')
+  const tracks = await recommender.weeklyTracks(lbUser, PLAYLIST_TYPE)
+  log.info({ runId, lbUser, tracks: tracks.length }, 'Got LB tracks')
 
   const albumMap = new Map()
   for (const track of tracks) {
@@ -50,12 +55,12 @@ async function runForUser(prisma, user, recommender, library, log) {
     albumMap.get(key).lbTracks.push({ title: track.title, artist: track.mainArtist })
   }
 
-  log.info({ lbUser: user.listenbrainzUsername, albums: albumMap.size }, 'Unique albums to consider')
+  log.info({ runId, lbUser, albums: albumMap.size }, 'Unique albums to consider')
 
   for (const { representative: track, lbTracks } of albumMap.values()) {
     const mbid = track.releaseMbid || track.mbid
     if (!mbid) {
-      log.warn({ title: track.title, artist: track.mainArtist }, 'No MBID, skipping')
+      log.warn({ runId, lbUser, artist: track.mainArtist, album: track.album }, 'No MBID, skipping')
       continue
     }
 
@@ -83,6 +88,6 @@ async function runForUser(prisma, user, recommender, library, log) {
       },
     })
 
-    log.info({ artist: track.mainArtist, album: track.album }, 'Exploration request created')
+    log.info({ runId, lbUser, artist: track.mainArtist, album: track.album }, 'Exploration request created')
   }
 }
