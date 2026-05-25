@@ -2,7 +2,7 @@ services:
   # cr8
   cr8-backend:
     container_name: cr8-backend
-    image: ghcr.io/drabenstadtj/cr8-backend:latest
+    image: ghcr.io/drabenstadtj/cr8-backend:${CR8_TAG:-latest}
     ports:
       - 3030:3000
     environment:
@@ -32,7 +32,7 @@ services:
       - reverse-proxy-network
   cr8-frontend:
     container_name: cr8-frontend
-    image: ghcr.io/drabenstadtj/cr8-frontend:latest
+    image: ghcr.io/drabenstadtj/cr8-frontend:${CR8_TAG:-latest}
     ports:
       - 5173:80
     depends_on:

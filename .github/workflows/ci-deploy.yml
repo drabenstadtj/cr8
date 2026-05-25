@@ -2,7 +2,7 @@ name: CI / Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
     branches: [main]
 
@@ -34,7 +34,7 @@ jobs:
   deploy:
     name: Build & Deploy
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -77,6 +77,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          port: 2341
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             docker compose pull cr8-backend cr8-frontend
