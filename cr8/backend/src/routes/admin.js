@@ -1,5 +1,7 @@
 import crypto from 'crypto'
 import { triggerExploration } from '../workers/exploration.js'
+import { applyTransition } from '../lib/apply-transition.js'
+import { EVENT } from '../lib/request-machine.js'
 
 export default async function adminRoutes(app) {
   app.get('/requests', { onRequest: [app.requireAdmin] }, async (req) => {
@@ -20,14 +22,13 @@ export default async function adminRoutes(app) {
     }
 
     if (action === 'approve') {
-      return req.prisma.request.update({ where: { id }, data: { status: 'APPROVED' } })
+      await applyTransition(req.prisma, request, EVENT.APPROVE)
+      return req.prisma.request.findUnique({ where: { id } })
     }
 
     if (action === 'reject') {
-      return req.prisma.request.update({
-        where: { id },
-        data: { status: 'REJECTED', rejectedReason: reason || null },
-      })
+      await applyTransition(req.prisma, request, EVENT.REJECT, { reason: reason || null })
+      return req.prisma.request.findUnique({ where: { id } })
     }
 
     return reply.code(400).send({ error: 'action must be approve or reject' })
