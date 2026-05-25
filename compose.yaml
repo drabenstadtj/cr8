@@ -1,0 +1,132 @@
+services:
+  # cr8
+  cr8-backend:
+    container_name: cr8-backend
+    image: ghcr.io/drabenstadtj/cr8-backend:latest
+    ports:
+      - 3030:3000
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: file:/data/cr8.db
+      SLSKD_URL: ${SLSKD_URL}
+      SLSKD_API_KEY: ${SLSKD_API_KEY}
+      BETANIN_URL: ${BETANIN_URL:-}
+      BETANIN_API_KEY: ${BETANIN_API_KEY:-}
+      GONIC_URL: ${GONIC_URL}
+      GONIC_PUBLIC_URL: ${GONIC_PUBLIC_URL:-}
+      GONIC_USER: ${GONIC_USER}
+      GONIC_PASSWORD: ${GONIC_PASSWORD}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      DOWNLOAD_DIR: /downloads
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      LB_PLAYLIST: ${LB_PLAYLIST:-weekly-exploration}
+      NODE_ENV: production
+    volumes:
+      - db_data:/data
+      - ${DOWNLOAD_DIR:-./downloads}:/downloads
+    restart: unless-stopped
+    networks:
+      - music-network
+      - reverse-proxy-network
+  cr8-frontend:
+    container_name: cr8-frontend
+    image: ghcr.io/drabenstadtj/cr8-frontend:latest
+    ports:
+      - 5173:80
+    depends_on:
+      - cr8-backend
+    restart: unless-stopped
+    networks:
+      - music-network
+      - reverse-proxy-network
+  # Music - Streaming
+  gonic:
+    image: ghcr.io/drabenstadtj/gonic:latest
+    container_name: gonic
+    restart: unless-stopped
+    ports:
+      - 4533:80
+    environment:
+      - TZ=${TZ}
+      - GONIC_MUSIC_PATH=/music
+      - GONIC_CACHE_PATH=/cache
+      - GONIC_DB_PATH=/data/gonic.db
+      - GONIC_PLAYLISTS_PATH=/playlists
+    volumes:
+      - ${CONFIG_PATH}/gonic:/data
+      - ${CONFIG_PATH}/gonic/cache:/cache
+      - ${CONFIG_PATH}/gonic/playlists:/playlists
+      - ${MUSIC_PATH}:/music:ro
+    networks:
+      - reverse-proxy-network
+      - homepage-network
+      - music-network
+  feishin:
+    container_name: feishin
+    image: ghcr.io/jeffvli/feishin:latest
+    restart: unless-stopped
+    environment:
+      - SERVER_NAME=Wintermute
+      - SERVER_TYPE=subsonic
+      - SERVER_URL=${GONIC_PUBLIC_URL:-}
+      - SERVER_LOCK=true
+      - LEGACY_AUTHENTICATION=true
+      - ANALYTICS_DISABLED=true
+    ports:
+      - 9180:9180
+    depends_on:
+      - gonic
+    networks:
+      - reverse-proxy-network
+      - homepage-network
+      - music-network
+  betanin:
+    image: sentriz/betanin
+    container_name: betanin
+    restart: unless-stopped
+    ports:
+      - 9393:9393
+    environment:
+      - UID=${PUID}
+      - GID=${PGID}
+    volumes:
+      - ${CONFIG_PATH}/betanin/data:/b/.local/share/betanin/
+      - ${CONFIG_PATH}/betanin/config:/b/.config/betanin/
+      - ${CONFIG_PATH}/beets:/b/.config/beets/
+      - ${MUSIC_PATH}:/music
+      - ./downloads:/downloads
+      - ${CONFIG_PATH}/beets:/config
+    networks:
+      - homepage-network
+      - music-network
+  slskd:
+    image: slskd/slskd:latest
+    container_name: slskd
+    restart: unless-stopped
+    user: 1000:1000
+    ports:
+      - 5030:5030 # Web UI
+      - 50300:50300 # Listening port
+    environment:
+      - SLSKD_REMOTE_CONFIGURATION=true
+      - SLSKD_SLSK_LISTEN_PORT=50300
+      - SLSKD_SLSK_DIAGNOSTIC_LEVEL=Info
+    volumes:
+      - ${CONFIG_PATH}/slskd:/app/config
+      - ${CONFIG_PATH}/slskd/data:/app/data
+      - ./downloads:/app/downloads
+      - ${CONFIG_PATH}/slskd/slskd.yml:/app/slskd.yml
+    networks:
+      - music-network
+      - homepage-network
+volumes:
+  db_data: null
+networks:
+  reverse-proxy-network:
+    external: true
+  homepage-network:
+    external: true
+  music-network:
+    external: true

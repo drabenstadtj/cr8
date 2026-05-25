@@ -10,10 +10,6 @@ node_modules/
 *.db
 *.db-journal
 *.db-wal
-
-# slskd
-slskd/
-slskd.yml
 *.db-shm
 
 # Prisma generated client
@@ -40,5 +36,3 @@ Thumbs.db
 
 # Claude
 .claude/
-
-downloads

@@ -1,0 +1,33 @@
+{
+  "name": "cr8-backend",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:seed": "node prisma/seed.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.0",
+    "@fastify/helmet": "^13.0.0",
+    "@fastify/jwt": "^9.0.0",
+    "@fastify/rate-limit": "^10.0.0",
+    "@prisma/client": "^5.14.0",
+    "bcrypt": "^5.1.1",
+    "fastify": "^5.0.0",
+    "node-cron": "^4.2.1",
+    "pino-pretty": "^11.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.14.0",
+    "vitest": "^4.1.7"
+  }
+}

@@ -1,0 +1,68 @@
+.page {
+    padding: 24px 20px;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.heading {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 24px;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.85rem;
+}
+
+.input {
+    width: 100%;
+}
+
+.hint {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin: 0;
+}
+
+.error {
+    font-size: 0.85rem;
+    color: var(--fg);
+    opacity: 0.6;
+}
+
+.success {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.button {
+    align-self: flex-start;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 32px;
+}
+
+.sectionLabel {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin: 0;
+}
