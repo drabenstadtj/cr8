@@ -1,5 +1,7 @@
+import { config } from '../../config.js'
+
 function checkExploApiKey(req, reply) {
-  const apiKey = process.env.EXPLO_API_KEY
+  const apiKey = config.EXPLO_API_KEY
   if (!apiKey) return reply.code(503).send({ error: 'EXPLO_API_KEY not configured' })
   const auth = req.headers['authorization'] || ''
   const provided = auth.startsWith('Bearer ') ? auth.slice(7) : ''

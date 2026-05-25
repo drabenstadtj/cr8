@@ -1,14 +1,15 @@
 import crypto from 'crypto'
+import { config } from '../config.js'
 
 function subsonicParams(extra = {}) {
   const salt = Math.random().toString(36).slice(2)
   const token = crypto
     .createHash('md5')
-    .update((process.env.GONIC_PASSWORD || '') + salt)
+    .update(config.GONIC_PASSWORD + salt)
     .digest('hex')
 
   const params = new URLSearchParams({
-    u: process.env.GONIC_USER || '',
+    u: config.GONIC_USER,
     t: token,
     s: salt,
     v: '1.16.1',
@@ -41,7 +42,7 @@ function isoWeekLabel(date = new Date()) {
 export function createLibraryAdapter() {
   return {
     async createUser(username, password) {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
       if (!base) return
 
       const url = `${base}/rest/createUser.view?${subsonicParams({ username, password, email: `${username}@cr8.local` })}`
@@ -58,7 +59,7 @@ export function createLibraryAdapter() {
     },
 
     async deleteUser(username) {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
       if (!base) return
 
       const url = `${base}/rest/deleteUser.view?${subsonicParams({ username })}`
@@ -75,7 +76,7 @@ export function createLibraryAdapter() {
     },
 
     async scanLibrary() {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
       if (!base) return
 
       const url = `${base}/rest/startScan.view?${subsonicParams()}`
@@ -83,7 +84,7 @@ export function createLibraryAdapter() {
     },
 
     async contains(title, artist) {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
       if (!base) return false
 
       try {
@@ -109,7 +110,7 @@ export function createLibraryAdapter() {
     },
 
     async lastFmStatus(username) {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
       if (!base) return { linked: false, apiKey: null }
       const url = `${base}/rest/getLastFmStatus.view?${subsonicParams({ username })}`
       const res = await fetch(url)
@@ -121,7 +122,7 @@ export function createLibraryAdapter() {
     },
 
     async linkLastFm(username, token) {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
       if (!base) throw new Error('Gonic not configured')
       const url = `${base}/rest/linkLastFm.view?${subsonicParams({ username, token })}`
       const res = await fetch(url)
@@ -132,7 +133,7 @@ export function createLibraryAdapter() {
     },
 
     async unlinkLastFm(username) {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
       if (!base) throw new Error('Gonic not configured')
       const url = `${base}/rest/unlinkLastFm.view?${subsonicParams({ username })}`
       const res = await fetch(url)
@@ -143,7 +144,7 @@ export function createLibraryAdapter() {
     },
 
     async getOrCreatePlaylist(name) {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
 
       const listRes = await fetch(`${base}/rest/getPlaylists?${subsonicParams()}`)
       if (listRes.ok) {
@@ -166,7 +167,7 @@ export function createLibraryAdapter() {
     },
 
     async addTracksToPlaylist(playlistName, lbTracks, { maxRetries = 8 } = {}) {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
       if (!base) return
 
       async function searchSongId(title, artist) {
@@ -200,7 +201,7 @@ export function createLibraryAdapter() {
     },
 
     async addAlbumToPlaylist(playlistName, artist, album, { maxRetries = 8 } = {}) {
-      const base = process.env.GONIC_URL
+      const base = config.GONIC_URL
       if (!base) return
 
       async function searchAlbumSongIds() {

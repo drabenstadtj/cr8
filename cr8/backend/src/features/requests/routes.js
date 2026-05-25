@@ -1,3 +1,5 @@
+import { config } from '../../config.js'
+
 export default async function requestRoutes(app) {
   app.get('/', { onRequest: [app.authenticate] }, async (req) => {
     return req.prisma.request.findMany({
@@ -66,7 +68,7 @@ export default async function requestRoutes(app) {
   app.get('/:id/listen', { onRequest: [app.authenticate] }, async (req, reply) => {
     const request = await req.prisma.request.findUnique({ where: { id: req.params.id } })
     if (!request) return reply.code(404).send({ error: 'Not found' })
-    const url = process.env.GONIC_PUBLIC_URL || process.env.GONIC_URL || null
+    const url = config.GONIC_PUBLIC_URL ?? config.GONIC_URL ?? null
     return { url }
   })
 

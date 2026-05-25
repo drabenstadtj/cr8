@@ -1,18 +1,17 @@
+import { config } from '../config.js'
+
 export function createImporterAdapter() {
   return {
     async importDownload(name) {
-      const url = process.env.BETANIN_URL
-      if (!url) return
+      if (!config.BETANIN_URL) return
 
-      const downloadDir = process.env.DOWNLOAD_DIR || '/downloads'
-      const apiKey = process.env.BETANIN_API_KEY
-      const body = new URLSearchParams({ path: downloadDir, name })
+      const body = new URLSearchParams({ path: config.DOWNLOAD_DIR, name })
 
-      const res = await fetch(`${url}/api/torrents`, {
+      const res = await fetch(`${config.BETANIN_URL}/api/torrents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+          ...(config.BETANIN_API_KEY ? { 'X-API-Key': config.BETANIN_API_KEY } : {}),
         },
         body: body.toString(),
       })

@@ -1,5 +1,7 @@
-const BASE = () => process.env.SLSKD_URL
-const API_KEY = () => process.env.SLSKD_API_KEY
+import { config } from '../config.js'
+
+const BASE = () => config.SLSKD_URL
+const API_KEY = () => config.SLSKD_API_KEY
 
 function headers() {
   return { 'X-API-Key': API_KEY(), 'Content-Type': 'application/json' }

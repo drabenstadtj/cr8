@@ -1,6 +1,7 @@
 import cron from 'node-cron'
+import { config } from '../../config.js'
 
-const PLAYLIST_TYPE = process.env.LB_PLAYLIST || 'weekly-exploration'
+const PLAYLIST_TYPE = config.LB_PLAYLIST
 
 export function startExplorationWorker(app) {
   app.log.info('Exploration worker started — scheduled for Mondays at 08:30')
