@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
@@ -25,6 +27,7 @@
     "pino-pretty": "^11.0.0"
   },
   "devDependencies": {
-    "prisma": "^5.14.0"
+    "prisma": "^5.14.0",
+    "vitest": "^4.1.7"
   }
 }
