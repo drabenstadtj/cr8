@@ -32,7 +32,7 @@ async function runWorker(app) {
 
 async function startDownload(prisma, request, app) {
   const { soulseek, log } = app
-  log.info({ id: request.id, type: request.type }, 'Starting slskd search')
+  log.info({ requestId: request.id, type: request.type }, 'Starting slskd search')
 
   try {
     const isAlbum = request.type === 'ALBUM'
@@ -55,8 +55,8 @@ async function startDownload(prisma, request, app) {
       })
 
       if (!candidates.length) {
-        log.warn({ id: request.id }, 'No suitable album candidates found')
-        await applyTransition(prisma, searching, EVENT.NO_CANDIDATES)
+        log.warn({ requestId: request.id }, 'No suitable album candidates found')
+        await applyTransition(prisma, searching, EVENT.NO_CANDIDATES, {}, 'No matching album found on Soulseek')
         return
       }
 
@@ -70,8 +70,8 @@ async function startDownload(prisma, request, app) {
       }
 
       if (!queued) {
-        log.warn({ id: request.id }, 'Failed to queue any album candidate')
-        await applyTransition(prisma, searching, EVENT.QUEUE_FAILED)
+        log.warn({ requestId: request.id }, 'Failed to queue any album candidate')
+        await applyTransition(prisma, searching, EVENT.QUEUE_FAILED, {}, 'Failed to queue album files with any candidate peer')
         return
       }
 
@@ -80,7 +80,7 @@ async function startDownload(prisma, request, app) {
         filename: queued.directory,
       })
 
-      log.info({ id: request.id, dir: queued.directory, tracks: queued.files.length }, 'Album download queued')
+      log.info({ requestId: request.id, dir: queued.directory, tracks: queued.files.length }, 'Album download queued')
     } else {
       const candidates = collectCandidates(responses, {
         title: request.title,
@@ -90,8 +90,8 @@ async function startDownload(prisma, request, app) {
       })
 
       if (!candidates.length) {
-        log.warn({ id: request.id }, 'No suitable candidates found')
-        await applyTransition(prisma, searching, EVENT.NO_CANDIDATES)
+        log.warn({ requestId: request.id }, 'No suitable track candidates found')
+        await applyTransition(prisma, searching, EVENT.NO_CANDIDATES, {}, 'No matching track found on Soulseek')
         return
       }
 
@@ -105,8 +105,8 @@ async function startDownload(prisma, request, app) {
       }
 
       if (!queued) {
-        log.warn({ id: request.id }, 'Failed to queue any track candidate')
-        await applyTransition(prisma, searching, EVENT.QUEUE_FAILED)
+        log.warn({ requestId: request.id }, 'Failed to queue any track candidate')
+        await applyTransition(prisma, searching, EVENT.QUEUE_FAILED, {}, 'Failed to queue track file with any candidate peer')
         return
       }
 
@@ -115,11 +115,16 @@ async function startDownload(prisma, request, app) {
         filename: queued.filename,
       })
 
-      log.info({ id: request.id, file: queued.filename }, 'Track download queued')
+      log.info({ requestId: request.id, file: queued.filename }, 'Track download queued')
     }
   } catch (err) {
-    log.error({ id: request.id, err }, 'Download failed')
-    await prisma.request.update({ where: { id: request.id }, data: { status: 'FAILED' } })
+    log.error({ requestId: request.id, err: err.message }, 'Unexpected error during search/queue')
+    const current = await prisma.request.findUnique({ where: { id: request.id } })
+    if (current) {
+      await applyTransition(prisma, current, EVENT.SEARCH_ERROR, {}, err.message).catch((e) =>
+        log.error({ requestId: request.id, err: e.message }, 'Failed to record search error transition')
+      )
+    }
   }
 }
 
@@ -156,7 +161,7 @@ async function pollDownloads(prisma, requests, app) {
       const allSucceeded = dirFiles.every((f) => f.state === 'Completed, Succeeded')
 
       if (allSucceeded) {
-        log.info({ id: request.id, tracks: dirFiles.length }, 'Album download complete')
+        log.info({ requestId: request.id, tracks: dirFiles.length }, 'Album download complete')
         const dirName = request.slskdFilename.replace(/\\/g, '/').split('/').filter(Boolean).pop()
         const lbTracks = request.lbTrackTitles ? JSON.parse(request.lbTrackTitles) : null
         const { sideEffects } = await applyTransition(prisma, request, EVENT.DOWNLOAD_COMPLETE, {
@@ -175,21 +180,21 @@ async function pollDownloads(prisma, requests, app) {
 
         if (allRejected || request.downloadRetries >= MAX_TRACK_RETRIES) {
           const reason = allRejected ? 'Album rejected by peer' : 'Max track retries reached'
-          log.warn({ id: request.id, user: request.slskdUsername, retries: request.downloadRetries }, `${reason} — retrying with new search`)
+          log.warn({ requestId: request.id, peer: request.slskdUsername, retries: request.downloadRetries }, `${reason} — retrying with new search`)
           for (const f of dirFiles) {
             await soulseek.removeDownload(request.slskdUsername, f.id).catch(() => {})
           }
           await applyTransition(prisma, request, EVENT.FRESH_SEARCH, {}, reason)
         } else {
           log.warn(
-            { id: request.id, failed: failedFiles.length, retry: request.downloadRetries + 1 },
+            { requestId: request.id, failed: failedFiles.length, retry: request.downloadRetries + 1 },
             'Retrying failed tracks'
           )
           for (const f of failedFiles) {
             await soulseek.removeDownload(request.slskdUsername, f.id).catch(() => {})
           }
           await soulseek.requeueFiles(request.slskdUsername, failedFiles).catch((e) => {
-            log.warn({ id: request.id, err: e.message }, 'Failed to requeue tracks — will retry next poll')
+            log.warn({ requestId: request.id, err: e.message }, 'Failed to requeue tracks — will retry next poll')
           })
           await applyTransition(prisma, request, EVENT.PEER_RETRY, { retries: request.downloadRetries + 1 })
         }
@@ -202,7 +207,7 @@ async function pollDownloads(prisma, requests, app) {
       if (!match) continue
 
       if (match.state === 'Completed, Succeeded') {
-        log.info({ id: request.id }, 'Download complete')
+        log.info({ requestId: request.id }, 'Download complete')
         const trackDirName = request.slskdFilename.replace(/\\/g, '/').split('/').filter(Boolean).slice(-2, -1)[0] || request.slskdFilename
         const { sideEffects } = await applyTransition(prisma, request, EVENT.DOWNLOAD_COMPLETE, {
           dirName: trackDirName,
@@ -212,14 +217,14 @@ async function pollDownloads(prisma, requests, app) {
         await soulseek.removeDownload(request.slskdUsername, match.id)
       } else if (match.state === 'Completed, Rejected' || request.downloadRetries >= MAX_TRACK_RETRIES) {
         const reason = match.state === 'Completed, Rejected' ? 'Track rejected by peer' : 'Max track retries reached'
-        log.warn({ id: request.id, user: request.slskdUsername, retries: request.downloadRetries }, `${reason} — retrying with new search`)
+        log.warn({ requestId: request.id, peer: request.slskdUsername, retries: request.downloadRetries }, `${reason} — retrying with new search`)
         await soulseek.removeDownload(request.slskdUsername, match.id).catch(() => {})
         await applyTransition(prisma, request, EVENT.FRESH_SEARCH, {}, reason)
       } else if (match.state?.startsWith('Completed,')) {
-        log.warn({ id: request.id, state: match.state, retry: request.downloadRetries + 1 }, 'Track download failed — retrying')
+        log.warn({ requestId: request.id, state: match.state, retry: request.downloadRetries + 1 }, 'Track download failed — retrying')
         await soulseek.removeDownload(request.slskdUsername, match.id).catch(() => {})
         await soulseek.requeueFiles(request.slskdUsername, [match]).catch((e) => {
-          log.warn({ id: request.id, err: e.message }, 'Failed to requeue track — will retry next poll')
+          log.warn({ requestId: request.id, err: e.message }, 'Failed to requeue track — will retry next poll')
         })
         await applyTransition(prisma, request, EVENT.PEER_RETRY, { retries: request.downloadRetries + 1 })
       }
